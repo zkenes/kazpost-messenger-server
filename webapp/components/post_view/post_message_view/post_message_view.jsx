@@ -76,7 +76,9 @@ export default class PostMessageView extends React.PureComponent {
         /**
          * Flags if the post_message_view is for the RHS (Reply).
          */
-        hasMention: PropTypes.bool
+        hasMention: PropTypes.bool,
+
+        components: PropTypes.object
     };
 
     static defaultProps = {
@@ -169,6 +171,19 @@ export default class PostMessageView extends React.PureComponent {
 
         if (!this.props.enableFormatting) {
             return <span>{this.props.post.message}</span>;
+        }
+
+        if (this.props.post.type) {
+            const pluginName = 'PostMessageView.' + this.props.post.type;
+            if (this.props.components[pluginName]) {
+                const PluginComponent = this.props.components[pluginName];
+
+                return (
+                    <PluginComponent
+                        post={this.props.post}
+                    />
+                );
+            }
         }
 
         const options = Object.assign({}, this.props.options, {

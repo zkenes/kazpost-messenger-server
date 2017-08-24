@@ -17,8 +17,7 @@ export function registerComponents(components) {
 }
 
 export function initializePlugins() {
-    window.mm_config.Plugins = JSON.stringify([{id: 'blergh', bundle_path: '/static/blergh_bundle.js'}]);
-    const pluginJson = window.mm_config.Plugins || '[]';
+    const pluginJson = window.mm_config.Plugins || '{}';
 
     let pluginManifests;
     try {
@@ -28,7 +27,7 @@ export function initializePlugins() {
         return;
     }
 
-    pluginManifests.forEach((m) => {
+    for (const m of Object.values(pluginManifests)) {
         function onLoad() {
             // Add the plugin's js to the page
             const script = document.createElement('script');
@@ -48,5 +47,5 @@ export function initializePlugins() {
         xhrObj.open('GET', getSiteURL() + m.bundle_path, true);
         xhrObj.addEventListener('load', onLoad);
         xhrObj.send('');
-    });
+    }
 }

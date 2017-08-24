@@ -2,6 +2,7 @@
 // See License.txt for license information.
 
 import {connect} from 'react-redux';
+import {createSelector} from 'reselect';
 import {getCustomEmojisByName} from 'mattermost-redux/selectors/entities/emojis';
 import {getBool} from 'mattermost-redux/selectors/entities/preferences';
 import {getCurrentUserMentionKeys, getUsersByUsername} from 'mattermost-redux/selectors/entities/users';
@@ -15,27 +16,24 @@ import {EmojiMap} from 'stores/emoji_store.jsx';
 
 import PostMessageView from './post_message_view.jsx';
 
-function makeMapStateToProps() {
-    let emojiMap;
-    let oldCustomEmoji;
+const getEmojiMap = createSelector(
+    getCustomEmojisByName,
+    (customEmojis) => {
+        return new EmojiMap(customEmojis);
+    }
+);
 
-    return function mapStateToProps(state, ownProps) {
-        const newCustomEmoji = getCustomEmojisByName(state);
-        if (newCustomEmoji !== oldCustomEmoji) {
-            emojiMap = new EmojiMap(newCustomEmoji);
-        }
-        oldCustomEmoji = newCustomEmoji;
-
-        return {
-            ...ownProps,
-            emojis: emojiMap,
-            enableFormatting: getBool(state, Preferences.CATEGORY_ADVANCED_SETTINGS, 'formatting', true),
-            mentionKeys: getCurrentUserMentionKeys(state),
-            usernameMap: getUsersByUsername(state),
-            team: getCurrentTeam(state),
-            siteUrl: getSiteURL()
-        };
+function mapStateToProps(state, ownProps) {
+    return {
+        ...ownProps,
+        emojis: getEmojiMap(state),
+        enableFormatting: getBool(state, Preferences.CATEGORY_ADVANCED_SETTINGS, 'formatting', true),
+        mentionKeys: getCurrentUserMentionKeys(state),
+        usernameMap: getUsersByUsername(state),
+        team: getCurrentTeam(state),
+        siteUrl: getSiteURL(),
+        components: state.plugins.components
     };
 }
 
-export default connect(makeMapStateToProps)(PostMessageView);
+export default connect(mapStateToProps)(PostMessageView);

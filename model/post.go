@@ -138,14 +138,14 @@ func (o *Post) IsValid() *AppError {
 		return NewLocAppError("Post.IsValid", "model.post.is_valid.hashtags.app_error", nil, "id="+o.Id)
 	}
 
-	// should be removed once more message types are supported
-	if !(o.Type == POST_DEFAULT || o.Type == POST_JOIN_LEAVE || o.Type == POST_ADD_REMOVE ||
-		o.Type == POST_JOIN_CHANNEL || o.Type == POST_LEAVE_CHANNEL ||
-		o.Type == POST_REMOVE_FROM_CHANNEL || o.Type == POST_ADD_TO_CHANNEL ||
-		o.Type == POST_SLACK_ATTACHMENT || o.Type == POST_HEADER_CHANGE || o.Type == POST_PURPOSE_CHANGE ||
-		o.Type == POST_DISPLAYNAME_CHANGE || o.Type == POST_CHANNEL_DELETED) {
-		return NewLocAppError("Post.IsValid", "model.post.is_valid.type.app_error", nil, "id="+o.Type)
-	}
+	// // should be removed once more message types are supported
+	// if !(o.Type == POST_DEFAULT || o.Type == POST_JOIN_LEAVE || o.Type == POST_ADD_REMOVE ||
+	// 	o.Type == POST_JOIN_CHANNEL || o.Type == POST_LEAVE_CHANNEL ||
+	// 	o.Type == POST_REMOVE_FROM_CHANNEL || o.Type == POST_ADD_TO_CHANNEL ||
+	// 	o.Type == POST_SLACK_ATTACHMENT || o.Type == POST_HEADER_CHANGE || o.Type == POST_PURPOSE_CHANGE ||
+	// 	o.Type == POST_DISPLAYNAME_CHANGE || o.Type == POST_CHANNEL_DELETED) {
+	// 	return NewLocAppError("Post.IsValid", "model.post.is_valid.type.app_error", nil, "id="+o.Type)
+	// }
 
 	if utf8.RuneCountInString(ArrayToJson(o.Filenames)) > POST_FILENAMES_MAX_RUNES {
 		return NewLocAppError("Post.IsValid", "model.post.is_valid.filenames.app_error", nil, "id="+o.Id)

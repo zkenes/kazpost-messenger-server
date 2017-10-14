@@ -30,9 +30,16 @@ func (ls SqlLicenseStore) CreateIndexesIfNotExists() {
 }
 
 func (ls SqlLicenseStore) Save(license *model.LicenseRecord) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		license.PreSave()
 		if result.Err = license.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -44,11 +51,21 @@ func (ls SqlLicenseStore) Save(license *model.LicenseRecord) store.StoreChannel 
 				result.Data = license
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (ls SqlLicenseStore) Get(id string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if obj, err := ls.GetReplica().Get(model.LicenseRecord{}, id); err != nil {
 			result.Err = model.NewAppError("SqlLicenseStore.Get", "store.sql_license.get.app_error", nil, "license_id="+id+", "+err.Error(), http.StatusInternalServerError)
 		} else if obj == nil {
@@ -56,5 +73,11 @@ func (ls SqlLicenseStore) Get(id string) store.StoreChannel {
 		} else {
 			result.Data = obj.(*model.LicenseRecord)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+
+	}()
+
+	return storeChannel
 }

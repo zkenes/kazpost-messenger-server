@@ -35,17 +35,29 @@ func (jss SqlJobStore) CreateIndexesIfNotExists() {
 }
 
 func (jss SqlJobStore) Save(job *model.Job) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
 		if err := jss.GetMaster().Insert(job); err != nil {
 			result.Err = model.NewAppError("SqlJobStore.Save", "store.sql_job.save.app_error", nil, "id="+job.Id+", "+err.Error(), http.StatusInternalServerError)
 		} else {
 			result.Data = job
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) UpdateOptimistically(job *model.Job, currentStatus string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if sqlResult, err := jss.GetMaster().Exec(
 			`UPDATE
 				Jobs
@@ -80,11 +92,20 @@ func (jss SqlJobStore) UpdateOptimistically(job *model.Job, currentStatus string
 				}
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) UpdateStatus(id string, status string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		job := &model.Job{
 			Id:             id,
 			Status:         status,
@@ -100,11 +121,20 @@ func (jss SqlJobStore) UpdateStatus(id string, status string) store.StoreChannel
 		if result.Err == nil {
 			result.Data = job
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) UpdateStatusOptimistically(id string, currentStatus string, newStatus string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var startAtClause string
 		if newStatus == model.JOB_STATUS_IN_PROGRESS {
 			startAtClause = `StartAt = :StartAt,`
@@ -134,11 +164,20 @@ func (jss SqlJobStore) UpdateStatusOptimistically(id string, currentStatus strin
 				}
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) Get(id string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var status *model.Job
 
 		if err := jss.GetReplica().SelectOne(&status,
@@ -156,11 +195,20 @@ func (jss SqlJobStore) Get(id string) store.StoreChannel {
 		} else {
 			result.Data = status
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) GetAllPage(offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var statuses []*model.Job
 
 		if _, err := jss.GetReplica().Select(&statuses,
@@ -178,11 +226,20 @@ func (jss SqlJobStore) GetAllPage(offset int, limit int) store.StoreChannel {
 		} else {
 			result.Data = statuses
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) GetAllByType(jobType string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var statuses []*model.Job
 
 		if _, err := jss.GetReplica().Select(&statuses,
@@ -198,11 +255,20 @@ func (jss SqlJobStore) GetAllByType(jobType string) store.StoreChannel {
 		} else {
 			result.Data = statuses
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) GetAllByTypePage(jobType string, offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var statuses []*model.Job
 
 		if _, err := jss.GetReplica().Select(&statuses,
@@ -222,11 +288,20 @@ func (jss SqlJobStore) GetAllByTypePage(jobType string, offset int, limit int) s
 		} else {
 			result.Data = statuses
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) GetAllByStatus(status string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var statuses []*model.Job
 
 		if _, err := jss.GetReplica().Select(&statuses,
@@ -242,11 +317,20 @@ func (jss SqlJobStore) GetAllByStatus(status string) store.StoreChannel {
 		} else {
 			result.Data = statuses
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) GetNewestJobByStatusAndType(status string, jobType string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var job *model.Job
 
 		if err := jss.GetReplica().SelectOne(&job,
@@ -265,11 +349,20 @@ func (jss SqlJobStore) GetNewestJobByStatusAndType(status string, jobType string
 		} else {
 			result.Data = job
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) GetCountByStatusAndType(status string, jobType string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if count, err := jss.GetReplica().SelectInt(`SELECT
 				COUNT(*)
 			FROM
@@ -282,11 +375,20 @@ func (jss SqlJobStore) GetCountByStatusAndType(status string, jobType string) st
 		} else {
 			result.Data = count
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (jss SqlJobStore) Delete(id string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := jss.GetMaster().Exec(
 			`DELETE FROM
 				Jobs
@@ -296,5 +398,10 @@ func (jss SqlJobStore) Delete(id string) store.StoreChannel {
 		} else {
 			result.Data = id
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }

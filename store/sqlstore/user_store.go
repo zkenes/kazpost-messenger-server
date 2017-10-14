@@ -93,14 +93,23 @@ func (us SqlUserStore) CreateIndexesIfNotExists() {
 }
 
 func (us SqlUserStore) Save(user *model.User) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if len(user.Id) > 0 {
 			result.Err = model.NewAppError("SqlUserStore.Save", "store.sql_user.save.existing.app_error", nil, "user_id="+user.Id, http.StatusBadRequest)
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
 		user.PreSave()
 		if result.Err = user.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -115,14 +124,25 @@ func (us SqlUserStore) Save(user *model.User) store.StoreChannel {
 		} else {
 			result.Data = user
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) Update(user *model.User, trustedUpdateData bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		user.PreUpdate()
 
 		if result.Err = user.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -156,6 +176,8 @@ func (us SqlUserStore) Update(user *model.User, trustedUpdateData bool) store.St
 				if user.Username != oldUser.Username ||
 					user.Email != oldUser.Email {
 					result.Err = model.NewAppError("SqlUserStore.Update", "store.sql_user.update.can_not_change_ldap.app_error", nil, "user_id="+user.Id, http.StatusBadRequest)
+					storeChannel <- result
+					close(storeChannel)
 					return
 				}
 			} else if user.Email != oldUser.Email {
@@ -182,11 +204,20 @@ func (us SqlUserStore) Update(user *model.User, trustedUpdateData bool) store.St
 				result.Data = [2]*model.User{user, oldUser}
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdateLastPictureUpdate(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		curTime := model.GetMillis()
 
 		if _, err := us.GetMaster().Exec("UPDATE Users SET LastPictureUpdate = :Time, UpdateAt = :Time WHERE Id = :UserId", map[string]interface{}{"Time": curTime, "UserId": userId}); err != nil {
@@ -194,11 +225,20 @@ func (us SqlUserStore) UpdateLastPictureUpdate(userId string) store.StoreChannel
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdateUpdateAt(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		curTime := model.GetMillis()
 
 		if _, err := us.GetMaster().Exec("UPDATE Users SET UpdateAt = :Time WHERE Id = :UserId", map[string]interface{}{"Time": curTime, "UserId": userId}); err != nil {
@@ -206,11 +246,21 @@ func (us SqlUserStore) UpdateUpdateAt(userId string) store.StoreChannel {
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdatePassword(userId, hashedPassword string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		updateAt := model.GetMillis()
 
 		if _, err := us.GetMaster().Exec("UPDATE Users SET Password = :Password, LastPasswordUpdate = :LastPasswordUpdate, UpdateAt = :UpdateAt, AuthData = NULL, AuthService = '', EmailVerified = true, FailedAttempts = 0 WHERE Id = :UserId", map[string]interface{}{"Password": hashedPassword, "LastPasswordUpdate": updateAt, "UpdateAt": updateAt, "UserId": userId}); err != nil {
@@ -218,21 +268,40 @@ func (us SqlUserStore) UpdatePassword(userId, hashedPassword string) store.Store
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdateFailedPasswordAttempts(userId string, attempts int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := us.GetMaster().Exec("UPDATE Users SET FailedAttempts = :FailedAttempts WHERE Id = :UserId", map[string]interface{}{"FailedAttempts": attempts, "UserId": userId}); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.UpdateFailedPasswordAttempts", "store.sql_user.update_failed_pwd_attempts.app_error", nil, "user_id="+userId, http.StatusInternalServerError)
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdateAuthData(userId string, service string, authData *string, email string, resetMfa bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		email = strings.ToLower(email)
 
 		updateAt := model.GetMillis()
@@ -267,11 +336,21 @@ func (us SqlUserStore) UpdateAuthData(userId string, service string, authData *s
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdateMfaSecret(userId, secret string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		updateAt := model.GetMillis()
 
 		if _, err := us.GetMaster().Exec("UPDATE Users SET MfaSecret = :Secret, UpdateAt = :UpdateAt WHERE Id = :UserId", map[string]interface{}{"Secret": secret, "UpdateAt": updateAt, "UserId": userId}); err != nil {
@@ -279,11 +358,21 @@ func (us SqlUserStore) UpdateMfaSecret(userId, secret string) store.StoreChannel
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) UpdateMfaActive(userId string, active bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		updateAt := model.GetMillis()
 
 		if _, err := us.GetMaster().Exec("UPDATE Users SET MfaActive = :Active, UpdateAt = :UpdateAt WHERE Id = :UserId", map[string]interface{}{"Active": active, "UpdateAt": updateAt, "UserId": userId}); err != nil {
@@ -291,11 +380,21 @@ func (us SqlUserStore) UpdateMfaActive(userId string, active bool) store.StoreCh
 		} else {
 			result.Data = userId
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) Get(id string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if obj, err := us.GetReplica().Get(model.User{}, id); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.Get", "store.sql_user.get.app_error", nil, "user_id="+id+", "+err.Error(), http.StatusInternalServerError)
 		} else if obj == nil {
@@ -303,33 +402,64 @@ func (us SqlUserStore) Get(id string) store.StoreChannel {
 		} else {
 			result.Data = obj.(*model.User)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetAll() store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var data []*model.User
 		if _, err := us.GetReplica().Select(&data, "SELECT * FROM Users"); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.GetAll", "store.sql_user.get.app_error", nil, err.Error(), http.StatusInternalServerError)
 		}
 
 		result.Data = data
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserStore) GetEtagForAllProfiles() store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		updateAt, err := s.GetReplica().SelectInt("SELECT UpdateAt FROM Users ORDER BY UpdateAt DESC LIMIT 1")
 		if err != nil {
 			result.Data = fmt.Sprintf("%v.%v.%v.%v", model.CurrentVersion, model.GetMillis(), utils.Cfg.PrivacySettings.ShowFullName, utils.Cfg.PrivacySettings.ShowEmailAddress)
 		} else {
 			result.Data = fmt.Sprintf("%v.%v.%v.%v", model.CurrentVersion, updateAt, utils.Cfg.PrivacySettings.ShowFullName, utils.Cfg.PrivacySettings.ShowEmailAddress)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetAllProfiles(offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, "SELECT * FROM Users ORDER BY Username ASC LIMIT :Limit OFFSET :Offset", map[string]interface{}{"Offset": offset, "Limit": limit}); err != nil {
@@ -342,22 +472,41 @@ func (us SqlUserStore) GetAllProfiles(offset int, limit int) store.StoreChannel 
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserStore) GetEtagForProfiles(teamId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		updateAt, err := s.GetReplica().SelectInt("SELECT UpdateAt FROM Users, TeamMembers WHERE TeamMembers.TeamId = :TeamId AND Users.Id = TeamMembers.UserId ORDER BY UpdateAt DESC LIMIT 1", map[string]interface{}{"TeamId": teamId})
 		if err != nil {
 			result.Data = fmt.Sprintf("%v.%v.%v.%v", model.CurrentVersion, model.GetMillis(), utils.Cfg.PrivacySettings.ShowFullName, utils.Cfg.PrivacySettings.ShowEmailAddress)
 		} else {
 			result.Data = fmt.Sprintf("%v.%v.%v.%v", model.CurrentVersion, updateAt, utils.Cfg.PrivacySettings.ShowFullName, utils.Cfg.PrivacySettings.ShowEmailAddress)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetProfiles(teamId string, offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, "SELECT Users.* FROM Users, TeamMembers WHERE TeamMembers.TeamId = :TeamId AND Users.Id = TeamMembers.UserId AND TeamMembers.DeleteAt = 0 ORDER BY Users.Username ASC LIMIT :Limit OFFSET :Offset", map[string]interface{}{"TeamId": teamId, "Offset": offset, "Limit": limit}); err != nil {
@@ -370,7 +519,12 @@ func (us SqlUserStore) GetProfiles(teamId string, offset int, limit int) store.S
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) InvalidateProfilesInChannelCacheByUser(userId string) {
@@ -391,7 +545,12 @@ func (us SqlUserStore) InvalidateProfilesInChannelCache(channelId string) {
 }
 
 func (us SqlUserStore) GetProfilesInChannel(channelId string, offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		query := "SELECT Users.* FROM Users, ChannelMembers WHERE ChannelMembers.ChannelId = :ChannelId AND Users.Id = ChannelMembers.UserId ORDER BY Users.Username ASC LIMIT :Limit OFFSET :Offset"
@@ -406,17 +565,29 @@ func (us SqlUserStore) GetProfilesInChannel(channelId string, offset int, limit 
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetAllProfilesInChannel(channelId string, allowFromCache bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if allowFromCache {
 			if cacheItem, ok := profilesInChannelCache.Get(channelId); ok {
 				if us.metrics != nil {
 					us.metrics.IncrementMemCacheHitCounter("Profiles in Channel")
 				}
 				result.Data = cacheItem.(map[string]*model.User)
+				storeChannel <- result
+				close(storeChannel)
 				return
 			} else {
 				if us.metrics != nil {
@@ -450,11 +621,21 @@ func (us SqlUserStore) GetAllProfilesInChannel(channelId string, allowFromCache 
 				profilesInChannelCache.AddWithExpiresInSecs(channelId, userMap, PROFILES_IN_CHANNEL_CACHE_SEC)
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetProfilesNotInChannel(teamId string, channelId string, offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, `
@@ -481,11 +662,20 @@ func (us SqlUserStore) GetProfilesNotInChannel(teamId string, channelId string, 
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetProfilesWithoutTeam(offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		query := `
@@ -518,11 +708,20 @@ func (us SqlUserStore) GetProfilesWithoutTeam(offset int, limit int) store.Store
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetProfilesByUsernames(usernames []string, teamId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 		props := make(map[string]interface{})
 		idQuery := ""
@@ -550,7 +749,12 @@ func (us SqlUserStore) GetProfilesByUsernames(usernames []string, teamId string)
 		} else {
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 type UserWithLastActivityAt struct {
@@ -559,7 +763,12 @@ type UserWithLastActivityAt struct {
 }
 
 func (us SqlUserStore) GetRecentlyActiveUsersForTeam(teamId string, offset, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*UserWithLastActivityAt
 
 		if _, err := us.GetReplica().Select(&users, `
@@ -587,11 +796,21 @@ func (us SqlUserStore) GetRecentlyActiveUsersForTeam(teamId string, offset, limi
 
 			result.Data = userList
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetNewUsersForTeam(teamId string, offset, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, `
@@ -611,11 +830,21 @@ func (us SqlUserStore) GetNewUsersForTeam(teamId string, offset, limit int) stor
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetProfileByIds(userIds []string, allowFromCache bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		users := []*model.User{}
 		props := make(map[string]interface{})
 		idQuery := ""
@@ -645,6 +874,8 @@ func (us SqlUserStore) GetProfileByIds(userIds []string, allowFromCache bool) st
 		// If everything came from the cache then just return
 		if len(remainingUserIds) == 0 {
 			result.Data = users
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -671,11 +902,21 @@ func (us SqlUserStore) GetProfileByIds(userIds []string, allowFromCache bool) st
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetSystemAdminProfiles() store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, "SELECT * FROM Users WHERE Roles LIKE :Roles", map[string]interface{}{"Roles": "%system_admin%"}); err != nil {
@@ -691,11 +932,21 @@ func (us SqlUserStore) GetSystemAdminProfiles() store.StoreChannel {
 
 			result.Data = userMap
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetByEmail(email string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		email = strings.ToLower(email)
 
 		user := model.User{}
@@ -705,13 +956,25 @@ func (us SqlUserStore) GetByEmail(email string) store.StoreChannel {
 		}
 
 		result.Data = &user
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetByAuth(authData *string, authService string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if authData == nil || *authData == "" {
 			result.Err = model.NewAppError("SqlUserStore.GetByAuth", store.MISSING_AUTH_ACCOUNT_ERROR, nil, "authData='', authService="+authService, http.StatusBadRequest)
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -726,11 +989,20 @@ func (us SqlUserStore) GetByAuth(authData *string, authService string) store.Sto
 		}
 
 		result.Data = &user
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetAllUsingAuthService(authService string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
 		var data []*model.User
 
 		if _, err := us.GetReplica().Select(&data, "SELECT * FROM Users WHERE AuthService = :AuthService", map[string]interface{}{"AuthService": authService}); err != nil {
@@ -738,11 +1010,21 @@ func (us SqlUserStore) GetAllUsingAuthService(authService string) store.StoreCha
 		}
 
 		result.Data = data
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetByUsername(username string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		user := model.User{}
 
 		if err := us.GetReplica().SelectOne(&user, "SELECT * FROM Users WHERE Username = :Username", map[string]interface{}{"Username": username}); err != nil {
@@ -750,11 +1032,20 @@ func (us SqlUserStore) GetByUsername(username string) store.StoreChannel {
 		}
 
 		result.Data = &user
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetForLogin(loginId string, allowSignInWithUsername, allowSignInWithEmail, ldapEnabled bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		params := map[string]interface{}{
 			"LoginId":                 loginId,
 			"AllowSignInWithUsername": allowSignInWithUsername,
@@ -782,39 +1073,77 @@ func (us SqlUserStore) GetForLogin(loginId string, allowSignInWithUsername, allo
 		} else {
 			result.Err = model.NewAppError("SqlUserStore.GetForLogin", "store.sql_user.get_for_login.app_error", nil, "", http.StatusInternalServerError)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) VerifyEmail(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := us.GetMaster().Exec("UPDATE Users SET EmailVerified = true WHERE Id = :UserId", map[string]interface{}{"UserId": userId}); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.VerifyEmail", "store.sql_user.verify_email.app_error", nil, "userId="+userId+", "+err.Error(), http.StatusInternalServerError)
 		}
 
 		result.Data = userId
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetTotalUsersCount() store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if count, err := us.GetReplica().SelectInt("SELECT COUNT(Id) FROM Users"); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.GetTotalUsersCount", "store.sql_user.get_total_users_count.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else {
 			result.Data = count
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) PermanentDelete(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := us.GetMaster().Exec("DELETE FROM Users WHERE Id = :UserId", map[string]interface{}{"UserId": userId}); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.PermanentDelete", "store.sql_user.permanent_delete.app_error", nil, "userId="+userId+", "+err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) AnalyticsUniqueUserCount(teamId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		query := ""
 		if len(teamId) > 0 {
 			query = "SELECT COUNT(DISTINCT Users.Email) From Users, TeamMembers WHERE TeamMembers.TeamId = :TeamId AND Users.Id = TeamMembers.UserId AND TeamMembers.DeleteAt = 0 AND Users.DeleteAt = 0"
@@ -828,11 +1157,21 @@ func (us SqlUserStore) AnalyticsUniqueUserCount(teamId string) store.StoreChanne
 		} else {
 			result.Data = v
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) AnalyticsActiveCount(timePeriod int64) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		time := model.GetMillis() - timePeriod
 
 		query := "SELECT COUNT(*) FROM Status WHERE LastActivityAt > :Time"
@@ -843,11 +1182,20 @@ func (us SqlUserStore) AnalyticsActiveCount(timePeriod int64) store.StoreChannel
 		} else {
 			result.Data = v
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetUnreadCount(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if count, err := us.GetReplica().SelectInt(`
 		SELECT SUM(CASE WHEN c.Type = 'D' THEN (c.TotalMsgCount - cm.MsgCount) ELSE cm.MentionCount END)
 		FROM Channels c
@@ -859,21 +1207,37 @@ func (us SqlUserStore) GetUnreadCount(userId string) store.StoreChannel {
 		} else {
 			result.Data = count
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetUnreadCountForChannel(userId string, channelId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if count, err := us.GetReplica().SelectInt("SELECT SUM(CASE WHEN c.Type = 'D' THEN (c.TotalMsgCount - cm.MsgCount) ELSE cm.MentionCount END) FROM Channels c INNER JOIN ChannelMembers cm ON c.Id = :ChannelId AND cm.ChannelId = :ChannelId AND cm.UserId = :UserId", map[string]interface{}{"ChannelId": channelId, "UserId": userId}); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.GetMentionCountForChannel", "store.sql_user.get_unread_count_for_channel.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else {
 			result.Data = count
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) Search(teamId string, term string, options map[string]bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
 		searchQuery := ""
 
 		if teamId == "" {
@@ -906,13 +1270,18 @@ func (us SqlUserStore) Search(teamId string, term string, options map[string]boo
 			LIMIT 100`
 		}
 
-		*result = us.performSearch(searchQuery, term, options, map[string]interface{}{"TeamId": teamId})
+		storeChannel <- us.performSearch(searchQuery, term, options, map[string]interface{}{"TeamId": teamId})
+		close(storeChannel)
 
-	})
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) SearchWithoutTeam(term string, options map[string]bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
 		searchQuery := `
 		SELECT
 			*
@@ -931,13 +1300,18 @@ func (us SqlUserStore) SearchWithoutTeam(term string, options map[string]bool) s
 			ORDER BY Username ASC
 		LIMIT 100`
 
-		*result = us.performSearch(searchQuery, term, options, map[string]interface{}{})
+		storeChannel <- us.performSearch(searchQuery, term, options, map[string]interface{}{})
+		close(storeChannel)
 
-	})
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) SearchNotInTeam(notInTeamId string, term string, options map[string]bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
 		searchQuery := `
 			SELECT
 				Users.*
@@ -952,13 +1326,18 @@ func (us SqlUserStore) SearchNotInTeam(notInTeamId string, term string, options 
 			ORDER BY Users.Username ASC
 			LIMIT 100`
 
-		*result = us.performSearch(searchQuery, term, options, map[string]interface{}{"NotInTeamId": notInTeamId})
+		storeChannel <- us.performSearch(searchQuery, term, options, map[string]interface{}{"NotInTeamId": notInTeamId})
+		close(storeChannel)
 
-	})
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) SearchNotInChannel(teamId string, channelId string, term string, options map[string]bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
 		searchQuery := ""
 		if teamId == "" {
 			searchQuery = `
@@ -994,13 +1373,18 @@ func (us SqlUserStore) SearchNotInChannel(teamId string, channelId string, term 
 			LIMIT 100`
 		}
 
-		*result = us.performSearch(searchQuery, term, options, map[string]interface{}{"TeamId": teamId, "ChannelId": channelId})
+		storeChannel <- us.performSearch(searchQuery, term, options, map[string]interface{}{"TeamId": teamId, "ChannelId": channelId})
+		close(storeChannel)
 
-	})
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) SearchInChannel(channelId string, term string, options map[string]bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
 		searchQuery := `
         SELECT
             Users.*
@@ -1014,9 +1398,12 @@ func (us SqlUserStore) SearchInChannel(channelId string, term string, options ma
             ORDER BY Users.Username ASC
         LIMIT 100`
 
-		*result = us.performSearch(searchQuery, term, options, map[string]interface{}{"ChannelId": channelId})
+		storeChannel <- us.performSearch(searchQuery, term, options, map[string]interface{}{"ChannelId": channelId})
+		close(storeChannel)
 
-	})
+	}()
+
+	return storeChannel
 }
 
 var escapeUserSearchChar = []string{
@@ -1096,27 +1483,51 @@ func (us SqlUserStore) performSearch(searchQuery string, term string, options ma
 }
 
 func (us SqlUserStore) AnalyticsGetInactiveUsersCount() store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if count, err := us.GetReplica().SelectInt("SELECT COUNT(Id) FROM Users WHERE DeleteAt > 0"); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.AnalyticsGetInactiveUsersCount", "store.sql_user.analytics_get_inactive_users_count.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else {
 			result.Data = count
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) AnalyticsGetSystemAdminCount() store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if count, err := us.GetReplica().SelectInt("SELECT count(*) FROM Users WHERE Roles LIKE :Roles and DeleteAt = 0", map[string]interface{}{"Roles": "%system_admin%"}); err != nil {
 			result.Err = model.NewAppError("SqlUserStore.AnalyticsGetSystemAdminCount", "store.sql_user.analytics_get_system_admin_count.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else {
 			result.Data = count
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetProfilesNotInTeam(teamId string, offset int, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, `
@@ -1140,11 +1551,21 @@ func (us SqlUserStore) GetProfilesNotInTeam(teamId string, offset int, limit int
 
 			result.Data = users
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlUserStore) GetEtagForProfilesNotInTeam(teamId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel)
+
+	go func() {
+		result := store.StoreResult{}
+
 		updateAt, err := us.GetReplica().SelectInt(`
             SELECT
                 u.UpdateAt
@@ -1163,5 +1584,10 @@ func (us SqlUserStore) GetEtagForProfilesNotInTeam(teamId string) store.StoreCha
 		} else {
 			result.Data = fmt.Sprintf("%v.%v.%v.%v", model.CurrentVersion, updateAt, utils.Cfg.PrivacySettings.ShowFullName, utils.Cfg.PrivacySettings.ShowEmailAddress)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }

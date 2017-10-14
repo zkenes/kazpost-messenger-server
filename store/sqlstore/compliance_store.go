@@ -37,9 +37,16 @@ func (s SqlComplianceStore) CreateIndexesIfNotExists() {
 }
 
 func (s SqlComplianceStore) Save(compliance *model.Compliance) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		compliance.PreSave()
 		if result.Err = compliance.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -48,12 +55,24 @@ func (s SqlComplianceStore) Save(compliance *model.Compliance) store.StoreChanne
 		} else {
 			result.Data = compliance
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlComplianceStore) Update(compliance *model.Compliance) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if result.Err = compliance.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -62,11 +81,21 @@ func (us SqlComplianceStore) Update(compliance *model.Compliance) store.StoreCha
 		} else {
 			result.Data = compliance
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlComplianceStore) GetAll(offset, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		query := "SELECT * FROM Compliances ORDER BY CreateAt DESC LIMIT :Limit OFFSET :Offset"
 
 		var compliances model.Compliances
@@ -75,11 +104,21 @@ func (s SqlComplianceStore) GetAll(offset, limit int) store.StoreChannel {
 		} else {
 			result.Data = compliances
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (us SqlComplianceStore) Get(id string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if obj, err := us.GetReplica().Get(model.Compliance{}, id); err != nil {
 			result.Err = model.NewAppError("SqlComplianceStore.Get", "store.sql_compliance.get.finding.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else if obj == nil {
@@ -87,11 +126,21 @@ func (us SqlComplianceStore) Get(id string) store.StoreChannel {
 		} else {
 			result.Data = obj.(*model.Compliance)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+
+	}()
+
+	return storeChannel
 }
 
 func (s SqlComplianceStore) ComplianceExport(job *model.Compliance) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		props := map[string]interface{}{"StartTime": job.StartAt, "EndTime": job.EndAt}
 
 		keywordQuery := ""
@@ -209,5 +258,10 @@ func (s SqlComplianceStore) ComplianceExport(job *model.Compliance) store.StoreC
 		} else {
 			result.Data = cposts
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }

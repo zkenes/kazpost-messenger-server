@@ -37,10 +37,17 @@ func (s SqlUserAccessTokenStore) CreateIndexesIfNotExists() {
 }
 
 func (s SqlUserAccessTokenStore) Save(token *model.UserAccessToken) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		token.PreSave()
 
 		if result.Err = token.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -49,17 +56,27 @@ func (s SqlUserAccessTokenStore) Save(token *model.UserAccessToken) store.StoreC
 		} else {
 			result.Data = token
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserAccessTokenStore) Delete(tokenId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		transaction, err := s.GetMaster().Begin()
 		if err != nil {
 			result.Err = model.NewAppError("SqlUserAccessTokenStore.Delete", "store.sql_user_access_token.delete.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else {
 			if extrasResult := s.deleteSessionsAndTokensById(transaction, tokenId); extrasResult.Err != nil {
-				*result = extrasResult
+				result = extrasResult
 			}
 
 			if result.Err == nil {
@@ -73,7 +90,12 @@ func (s SqlUserAccessTokenStore) Delete(tokenId string) store.StoreChannel {
 				}
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserAccessTokenStore) deleteSessionsAndTokensById(transaction *gorp.Transaction, tokenId string) store.StoreResult {
@@ -105,13 +127,18 @@ func (s SqlUserAccessTokenStore) deleteTokensById(transaction *gorp.Transaction,
 }
 
 func (s SqlUserAccessTokenStore) DeleteAllForUser(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		transaction, err := s.GetMaster().Begin()
 		if err != nil {
 			result.Err = model.NewAppError("SqlUserAccessTokenStore.DeleteAllForUser", "store.sql_user_access_token.delete.app_error", nil, err.Error(), http.StatusInternalServerError)
 		} else {
 			if extrasResult := s.deleteSessionsandTokensByUser(transaction, userId); extrasResult.Err != nil {
-				*result = extrasResult
+				result = extrasResult
 			}
 
 			if result.Err == nil {
@@ -125,7 +152,12 @@ func (s SqlUserAccessTokenStore) DeleteAllForUser(userId string) store.StoreChan
 				}
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserAccessTokenStore) deleteSessionsandTokensByUser(transaction *gorp.Transaction, userId string) store.StoreResult {
@@ -157,7 +189,12 @@ func (s SqlUserAccessTokenStore) deleteTokensByUser(transaction *gorp.Transactio
 }
 
 func (s SqlUserAccessTokenStore) Get(tokenId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		token := model.UserAccessToken{}
 
 		if err := s.GetReplica().SelectOne(&token, "SELECT * FROM UserAccessTokens WHERE Id = :Id", map[string]interface{}{"Id": tokenId}); err != nil {
@@ -169,11 +206,21 @@ func (s SqlUserAccessTokenStore) Get(tokenId string) store.StoreChannel {
 		}
 
 		result.Data = &token
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserAccessTokenStore) GetByToken(tokenString string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		token := model.UserAccessToken{}
 
 		if err := s.GetReplica().SelectOne(&token, "SELECT * FROM UserAccessTokens WHERE Token = :Token", map[string]interface{}{"Token": tokenString}); err != nil {
@@ -185,11 +232,21 @@ func (s SqlUserAccessTokenStore) GetByToken(tokenString string) store.StoreChann
 		}
 
 		result.Data = &token
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlUserAccessTokenStore) GetByUser(userId string, offset, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		tokens := []*model.UserAccessToken{}
 
 		if _, err := s.GetReplica().Select(&tokens, "SELECT * FROM UserAccessTokens WHERE UserId = :UserId LIMIT :Limit OFFSET :Offset", map[string]interface{}{"UserId": userId, "Offset": offset, "Limit": limit}); err != nil {
@@ -197,5 +254,10 @@ func (s SqlUserAccessTokenStore) GetByUser(userId string, offset, limit int) sto
 		}
 
 		result.Data = tokens
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }

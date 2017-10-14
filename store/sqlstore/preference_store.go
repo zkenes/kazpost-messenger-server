@@ -60,7 +60,11 @@ func (s SqlPreferenceStore) DeleteUnusedFeatures() {
 }
 
 func (s SqlPreferenceStore) Save(preferences *model.Preferences) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		// wrap in a transaction so that if one fails, everything fails
 		transaction, err := s.GetMaster().Begin()
 		if err != nil {
@@ -68,7 +72,7 @@ func (s SqlPreferenceStore) Save(preferences *model.Preferences) store.StoreChan
 		} else {
 			for _, preference := range *preferences {
 				if upsertResult := s.save(transaction, &preference); upsertResult.Err != nil {
-					*result = upsertResult
+					result = upsertResult
 					break
 				}
 			}
@@ -86,7 +90,12 @@ func (s SqlPreferenceStore) Save(preferences *model.Preferences) store.StoreChan
 				}
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) save(transaction *gorp.Transaction, preference *model.Preference) store.StoreResult {
@@ -172,7 +181,11 @@ func (s SqlPreferenceStore) update(transaction *gorp.Transaction, preference *mo
 }
 
 func (s SqlPreferenceStore) Get(userId string, category string, name string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var preference model.Preference
 
 		if err := s.GetReplica().SelectOne(&preference,
@@ -188,11 +201,20 @@ func (s SqlPreferenceStore) Get(userId string, category string, name string) sto
 		} else {
 			result.Data = preference
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) GetCategory(userId string, category string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var preferences model.Preferences
 
 		if _, err := s.GetReplica().Select(&preferences,
@@ -207,11 +229,20 @@ func (s SqlPreferenceStore) GetCategory(userId string, category string) store.St
 		} else {
 			result.Data = preferences
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) GetAll(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var preferences model.Preferences
 
 		if _, err := s.GetReplica().Select(&preferences,
@@ -225,20 +256,37 @@ func (s SqlPreferenceStore) GetAll(userId string) store.StoreChannel {
 		} else {
 			result.Data = preferences
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) PermanentDeleteByUser(userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := s.GetMaster().Exec(
 			`DELETE FROM Preferences WHERE UserId = :UserId`, map[string]interface{}{"UserId": userId}); err != nil {
 			result.Err = model.NewAppError("SqlPreferenceStore.Delete", "store.sql_preference.permanent_delete_by_user.app_error", nil, err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) IsFeatureEnabled(feature, userId string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
 		if value, err := s.GetReplica().SelectStr(`SELECT
 				value
 			FROM
@@ -251,11 +299,20 @@ func (s SqlPreferenceStore) IsFeatureEnabled(feature, userId string) store.Store
 		} else {
 			result.Data = value == "true"
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) Delete(userId, category, name string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := s.GetMaster().Exec(
 			`DELETE FROM
 				Preferences
@@ -265,11 +322,20 @@ func (s SqlPreferenceStore) Delete(userId, category, name string) store.StoreCha
 				AND Name = :Name`, map[string]interface{}{"UserId": userId, "Category": category, "Name": name}); err != nil {
 			result.Err = model.NewAppError("SqlPreferenceStore.Delete", "store.sql_preference.delete.app_error", nil, err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) DeleteCategory(userId string, category string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := s.GetMaster().Exec(
 			`DELETE FROM
 				Preferences
@@ -278,11 +344,20 @@ func (s SqlPreferenceStore) DeleteCategory(userId string, category string) store
 				AND Category = :Category`, map[string]interface{}{"UserId": userId, "Category": category}); err != nil {
 			result.Err = model.NewAppError("SqlPreferenceStore.DeleteCategory", "store.sql_preference.delete.app_error", nil, err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) DeleteCategoryAndName(category string, name string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if _, err := s.GetMaster().Exec(
 			`DELETE FROM
 				Preferences
@@ -291,11 +366,20 @@ func (s SqlPreferenceStore) DeleteCategoryAndName(category string, name string) 
 				AND Category = :Category`, map[string]interface{}{"Name": name, "Category": category}); err != nil {
 			result.Err = model.NewAppError("SqlPreferenceStore.DeleteCategoryAndName", "store.sql_preference.delete.app_error", nil, err.Error(), http.StatusInternalServerError)
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlPreferenceStore) CleanupFlagsBatch(limit int64) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		query :=
 			`DELETE FROM
 				Preferences
@@ -334,5 +418,10 @@ func (s SqlPreferenceStore) CleanupFlagsBatch(limit int64) store.StoreChannel {
 				result.Data = rowsAffected
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }

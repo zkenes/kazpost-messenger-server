@@ -38,14 +38,22 @@ func (s SqlCommandWebhookStore) CreateIndexesIfNotExists() {
 }
 
 func (s SqlCommandWebhookStore) Save(webhook *model.CommandWebhook) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if len(webhook.Id) > 0 {
 			result.Err = model.NewAppError("SqlCommandWebhookStore.Save", "store.sql_command_webhooks.save.existing.app_error", nil, "id="+webhook.Id, http.StatusBadRequest)
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
 		webhook.PreSave()
 		if result.Err = webhook.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -54,11 +62,20 @@ func (s SqlCommandWebhookStore) Save(webhook *model.CommandWebhook) store.StoreC
 		} else {
 			result.Data = webhook
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlCommandWebhookStore) Get(id string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var webhook model.CommandWebhook
 
 		exptime := model.GetMillis() - model.COMMAND_WEBHOOK_LIFETIME
@@ -70,11 +87,20 @@ func (s SqlCommandWebhookStore) Get(id string) store.StoreChannel {
 		}
 
 		result.Data = &webhook
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlCommandWebhookStore) TryUse(id string, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if sqlResult, err := s.GetMaster().Exec("UPDATE CommandWebhooks SET UseCount = UseCount + 1 WHERE Id = :Id AND UseCount < :UseLimit", map[string]interface{}{"Id": id, "UseLimit": limit}); err != nil {
 			result.Err = model.NewAppError("SqlCommandWebhookStore.TryUse", "store.sql_command_webhooks.try_use.app_error", nil, "id="+id+", err="+err.Error(), http.StatusInternalServerError)
 		} else if rows, _ := sqlResult.RowsAffected(); rows == 0 {
@@ -82,7 +108,12 @@ func (s SqlCommandWebhookStore) TryUse(id string, limit int) store.StoreChannel 
 		}
 
 		result.Data = id
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (s SqlCommandWebhookStore) Cleanup() {

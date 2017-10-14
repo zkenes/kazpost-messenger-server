@@ -49,9 +49,15 @@ func (es SqlEmojiStore) CreateIndexesIfNotExists() {
 }
 
 func (es SqlEmojiStore) Save(emoji *model.Emoji) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		emoji.PreSave()
 		if result.Err = emoji.IsValid(); result.Err != nil {
+			storeChannel <- result
+			close(storeChannel)
 			return
 		}
 
@@ -60,17 +66,28 @@ func (es SqlEmojiStore) Save(emoji *model.Emoji) store.StoreChannel {
 		} else {
 			result.Data = emoji
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (es SqlEmojiStore) Get(id string, allowFromCache bool) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if allowFromCache {
 			if cacheItem, ok := emojiCache.Get(id); ok {
 				if es.metrics != nil {
 					es.metrics.IncrementMemCacheHitCounter("Emoji")
 				}
 				result.Data = cacheItem.(*model.Emoji)
+				storeChannel <- result
+				close(storeChannel)
 				return
 			} else {
 				if es.metrics != nil {
@@ -101,11 +118,20 @@ func (es SqlEmojiStore) Get(id string, allowFromCache bool) store.StoreChannel {
 				emojiCache.AddWithExpiresInSecs(id, emoji, EMOJI_CACHE_SEC)
 			}
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (es SqlEmojiStore) GetByName(name string) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var emoji *model.Emoji
 
 		if err := es.GetReplica().SelectOne(&emoji,
@@ -120,11 +146,20 @@ func (es SqlEmojiStore) GetByName(name string) store.StoreChannel {
 		} else {
 			result.Data = emoji
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (es SqlEmojiStore) GetList(offset, limit int) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		var emoji []*model.Emoji
 
 		if _, err := es.GetReplica().Select(&emoji,
@@ -139,11 +174,20 @@ func (es SqlEmojiStore) GetList(offset, limit int) store.StoreChannel {
 		} else {
 			result.Data = emoji
 		}
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }
 
 func (es SqlEmojiStore) Delete(id string, time int64) store.StoreChannel {
-	return store.Do(func(result *store.StoreResult) {
+	storeChannel := make(store.StoreChannel, 1)
+
+	go func() {
+		result := store.StoreResult{}
+
 		if sqlResult, err := es.GetMaster().Exec(
 			`Update
 				Emoji
@@ -159,5 +203,10 @@ func (es SqlEmojiStore) Delete(id string, time int64) store.StoreChannel {
 		}
 
 		emojiCache.Remove(id)
-	})
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
 }

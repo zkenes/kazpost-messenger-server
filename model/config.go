@@ -138,6 +138,12 @@ const (
 	ELASTICSEARCH_SETTINGS_DEFAULT_POST_INDEX_SHARDS               = 1
 	ELASTICSEARCH_SETTINGS_DEFAULT_AGGREGATE_POSTS_AFTER_DAYS      = 365
 	ELASTICSEARCH_SETTINGS_DEFAULT_POSTS_AGGREGATOR_JOB_START_TIME = "03:00"
+	ELASTICSEARCH_SETTINGS_DEFAULT_INDEX_PREFIX                    = ""
+	ELASTICSEARCH_SETTINGS_DEFAULT_LIVE_INDEXING_BATCH_SIZE        = 1
+
+	DATA_RETENTION_SETTINGS_DEFAULT_MESSAGE_RETENTION_DAYS  = 365
+	DATA_RETENTION_SETTINGS_DEFAULT_FILE_RETENTION_DAYS     = 365
+	DATA_RETENTION_SETTINGS_DEFAULT_DELETION_JOB_START_TIME = "02:00"
 )
 
 type ServiceSettings struct {
@@ -477,6 +483,8 @@ type ElasticsearchSettings struct {
 	PostIndexShards             *int
 	AggregatePostsAfterDays     *int
 	PostsAggregatorJobStartTime *string
+	IndexPrefix                 *string
+	LiveIndexingBatchSize       *int
 }
 
 type DataRetentionSettings struct {
@@ -1560,6 +1568,16 @@ func (o *Config) SetDefaults() {
 		*o.DataRetentionSettings.Enable = false
 	}
 
+	if o.ElasticsearchSettings.IndexPrefix == nil {
+		o.ElasticsearchSettings.IndexPrefix = new(string)
+		*o.ElasticsearchSettings.IndexPrefix = ELASTICSEARCH_SETTINGS_DEFAULT_INDEX_PREFIX
+	}
+
+	if o.ElasticsearchSettings.LiveIndexingBatchSize == nil {
+		o.ElasticsearchSettings.LiveIndexingBatchSize = new(int)
+		*o.ElasticsearchSettings.LiveIndexingBatchSize = ELASTICSEARCH_SETTINGS_DEFAULT_LIVE_INDEXING_BATCH_SIZE
+	}
+
 	if o.JobSettings.RunJobs == nil {
 		o.JobSettings.RunJobs = new(bool)
 		*o.JobSettings.RunJobs = true
@@ -1814,6 +1832,10 @@ func (o *Config) IsValid() *AppError {
 
 	if _, err := time.Parse("03:04", *o.ElasticsearchSettings.PostsAggregatorJobStartTime); err != nil {
 		return NewAppError("Config.IsValid", "model.config.is_valid.elastic_search.posts_aggregator_job_start_time.app_error", nil, err.Error(), http.StatusBadRequest)
+	}
+
+	if *o.ElasticsearchSettings.LiveIndexingBatchSize < 1 {
+		return NewAppError("Config.IsValid", "model.config.is_valid.elastic_search.live_indexing_batch_size.app_error", nil, "", http.StatusBadRequest)
 	}
 
 	return nil

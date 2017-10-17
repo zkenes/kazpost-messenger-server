@@ -313,7 +313,9 @@
         "PostIndexReplicas": 1,
         "PostIndexShards": 1,
         "AggregatePostsAfterDays": 365,
-        "PostsAggregatorJobStartTime": "03:00"
+        "PostsAggregatorJobStartTime": "03:00",
+        "IndexPrefix": "",
+        "LiveIndexingBatchSize": 1
     },
     "DataRetentionSettings": {
         "Enable": false

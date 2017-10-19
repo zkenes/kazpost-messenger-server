@@ -1326,7 +1326,7 @@ func (s SqlPostStore) GetPostsByIds(postIds []string) StoreChannel {
 	return storeChannel
 }
 
-func (s SqlPostStore) GetPostsBatchForIndexing(startTime int64, limit int) StoreChannel {
+func (s SqlPostStore) GetPostsBatchForIndexing(startTime int64, endTime int64, limit int) StoreChannel {
 	storeChannel := make(StoreChannel, 1)
 
 	go func() {
@@ -1334,31 +1334,60 @@ func (s SqlPostStore) GetPostsBatchForIndexing(startTime int64, limit int) Store
 
 		var posts []*model.PostForIndexing
 		_, err1 := s.GetSearchReplica().Select(&posts,
-			`(SELECT
-			    Posts.*,
-			    Channels.TeamId,
-			    ParentPosts.CreateAt ParentCreateAt
-			FROM
-				Posts
+			`SELECT
+				PostsQuery.*, Channels.TeamId, ParentPosts.CreateAt ParentCreateAt
+			FROM (
+				SELECT
+					*
+				FROM
+					Posts
+				WHERE
+					Posts.CreateAt >= :StartTime
+				AND
+					Posts.CreateAt < :EndTime
+				ORDER BY
+					CreateAt ASC
+				LIMIT
+					1000
+				)
+			AS
+				PostsQuery
 			LEFT JOIN
 				Channels
 			ON
-				Posts.ChannelId = Channels.Id
+				PostsQuery.ChannelId = Channels.Id
 			LEFT JOIN
 				Posts ParentPosts
 			ON
-				Posts.RootId = ParentPosts.Id
-			WHERE
-				Posts.CreateAt >= :StartTime
-			ORDER BY CreateAt ASC
-			LIMIT :NumPosts)`,
-			map[string]interface{}{"StartTime": startTime, "NumPosts": limit})
+				PostsQuery.RootId = ParentPosts.Id`,
+			map[string]interface{}{"StartTime": startTime, "EndTime": endTime, "NumPosts": limit})
 
 		if err1 != nil {
 			result.Err = model.NewLocAppError("SqlPostStore.GetPostContext", "store.sql_post.get_posts_batch_for_indexing.get.app_error", nil, err1.Error())
 		} else {
 			result.Data = posts
 		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlPostStore) GetOldest() StoreChannel {
+	storeChannel := make(StoreChannel, 1)
+
+	go func() {
+		result := StoreResult{}
+
+		var post model.Post
+		err := s.GetReplica().SelectOne(&post, "SELECT * FROM Posts ORDER BY CreateAt LIMIT 1")
+		if err != nil {
+			result.Err = model.NewAppError("SqlPostStore.GetOldest", "store.sql_post.get.app_error", nil, err.Error(), http.StatusNotFound)
+		}
+
+		result.Data = &post
 
 		storeChannel <- result
 		close(storeChannel)

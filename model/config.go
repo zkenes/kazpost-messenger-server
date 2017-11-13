@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/mattermost/mattermost-server/utils/logger"
 )
 
 const (
@@ -255,8 +257,9 @@ type LogSettings struct {
 	ConsoleLevel           string
 	EnableFile             bool
 	FileLevel              string
-	FileFormat             string
-	FileLocation           string
+	FileType               *string //plaintext or json
+	FileFormat             string  // format string for log lines - only needed if plaintext file type
+	FileLocation           string  // where to write the log file to
 	EnableWebhookDebugging bool
 	EnableDiagnostics      *bool
 }
@@ -1213,6 +1216,10 @@ func (o *Config) SetDefaults() {
 		o.LogSettings.EnableDiagnostics = NewBool(true)
 	}
 
+	if o.LogSettings.FileType == nil {
+		o.LogSettings.FileType = NewString(logger.LOG_FILE_TYPE_PLAINTEXT)
+	}
+
 	if o.SamlSettings.Enable == nil {
 		o.SamlSettings.Enable = NewBool(false)
 	}
@@ -1880,6 +1887,14 @@ func (ls *LocalizationSettings) isValid() *AppError {
 		if !strings.Contains(*ls.AvailableLocales, *ls.DefaultClientLocale) {
 			return NewAppError("Config.IsValid", "model.config.is_valid.localization.available_locales.app_error", nil, "", http.StatusBadRequest)
 		}
+	}
+
+	return nil
+}
+
+func (ls *LogSettings) isValid() *AppError {
+	if ls.FileType == nil || (*ls.FileType != logger.LOG_FILE_TYPE_JSON && *ls.FileType != logger.LOG_FILE_TYPE_PLAINTEXT) {
+		return NewAppError("Config.IsValid", "model.config.is_valid.log.file_type.app_error", nil, "", http.StatusBadRequest)
 	}
 
 	return nil

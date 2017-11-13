@@ -21,6 +21,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	LOG_FILE_TYPE_JSON      = "json"
+	LOG_FILE_TYPE_PLAINTEXT = "plaintext"
+)
+
 // this pattern allows us to "mock" the underlying l4g code when unit testing
 var logger l4g.Logger
 var debugLog = l4g.Debug

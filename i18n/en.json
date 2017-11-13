@@ -4640,6 +4640,10 @@
     "translation": "Available Languages must contain Default Client Language"
   },
   {
+    "id": "model.config.is_valid.log.file_type.app_error",
+    "translation": "Invalid FileType property for Log Settings. Must be one of either \"json\" or \"plaintext\""
+  },
+  {
     "id": "model.config.is_valid.login_attempts.app_error",
     "translation": "Invalid maximum login attempts for service settings.  Must be a positive number."
   },

@@ -19,3 +19,5 @@ What did you see happen? Please include relevant error messages and/or screensho
 
 #### Possible fixes
 If you can, link to the line of code that might be responsible for the problem
+
+IMPORTANT: For the benefit of the community, incorrectly created issues that do not follow the template and procedures per the documentation above may be deleted to reduce clutter. 

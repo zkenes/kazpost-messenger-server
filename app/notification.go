@@ -1005,8 +1005,8 @@ func DoesNotifyPropsAllowPushNotification(user *model.User, channelNotifyProps m
 }
 
 func DoesStatusAllowPushNotification(userNotifyProps model.StringMap, status *model.Status, channelId string) bool {
-	// If User status is DND return false right away
-	if status.Status == model.STATUS_DND {
+	// If User status is DND or focus return false right away
+	if status.Status == model.STATUS_DND || status.Status == model.STATUS_FOCUS {
 		return false
 	}
 

@@ -462,26 +462,51 @@ func (s SqlPostStore) GetPosts(channelId string, offset int, limit int, allowFro
 			}
 		}
 
-		rpc := s.getRootPosts(channelId, offset, limit)
-		cpc := s.getParentsPosts(channelId, offset, limit)
+		type postWithCentreChannelFlag struct {
+			model.Post
+			IsCentreChannel bool `json:"is_centre_channel"`
+		}
 
-		if rpr := <-rpc; rpr.Err != nil {
-			result.Err = rpr.Err
-		} else if cpr := <-cpc; cpr.Err != nil {
-			result.Err = cpr.Err
+		var posts []*postWithCentreChannelFlag
+		_, err := s.GetReplica().Select(&posts, `
+		    SELECT
+			post.*,
+			post.Id = centreChannelPost.Id AS IsCentreChannel 
+		    FROM (
+			SELECT
+			    Id,
+			    RootId
+			FROM
+			    Posts
+			WHERE
+			    ChannelId = :ChannelId
+			AND DeleteAt = 0
+			ORDER BY 
+			    CreateAt DESC
+			LIMIT :Limit OFFSET :Offset
+		    ) centreChannelPost
+		    JOIN Posts post ON (
+			post.Id = centreChannelPost.Id
+		     OR post.Id = centreChannelPost.RootId
+		     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
+		    )
+		    WHERE
+			post.DeleteAt = 0
+		    ORDER BY 
+		        CreateAt DESC
+		`, map[string]interface{}{"ChannelId": channelId, "Offset": offset, "Limit": limit})
+		// OR post.RootId = centreChannelPost.Id
+
+		if err != nil {
+			result.Err = model.NewAppError("SqlPostStore.GetLinearPosts", "store.sql_post.get_root_posts.app_error", nil, "channelId="+channelId+err.Error(), http.StatusInternalServerError)
 		} else {
-			posts := rpr.Data.([]*model.Post)
-			parents := cpr.Data.([]*model.Post)
-
 			list := model.NewPostList()
 
-			for _, p := range posts {
-				list.AddPost(p)
-				list.AddOrder(p.Id)
-			}
-
-			for _, p := range parents {
-				list.AddPost(p)
+			for _, post := range posts {
+				list.AddPost(&post.Post)
+				if post.IsCentreChannel {
+					list.AddOrder(post.Id)
+				}
 			}
 
 			list.MakeNonNil()
@@ -699,7 +724,9 @@ func (s SqlPostStore) getParentsPosts(channelId string, offset int, limit int) s
 			    ON q1.RootId = q2.Id OR q1.RootId = q2.RootId
 			WHERE
 			    ChannelId = :ChannelId2
-			        AND DeleteAt = 0`,
+			        AND DeleteAt = 0
+			ORDER BY RAND()`,
+			//ORDER BY CreateAt`,
 			map[string]interface{}{"ChannelId1": channelId, "Offset": offset, "Limit": limit, "ChannelId2": channelId})
 		if err != nil {
 			result.Err = model.NewAppError("SqlPostStore.GetLinearPosts", "store.sql_post.get_parents_posts.app_error", nil, "channelId="+channelId+" err="+err.Error(), http.StatusInternalServerError)

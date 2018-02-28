@@ -177,7 +177,7 @@ As it turns out, this is precisely the strategy used by `GetPostsSince`.
 			FROM
 			    Posts
 			WHERE
-			    ChannelId = "na7oxnzzbfd9pppud1q89trfze"
+			    ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw"
 			AND DeleteAt = 0
 			ORDER BY 
 			    CreateAt DESC
@@ -185,11 +185,14 @@ As it turns out, this is precisely the strategy used by `GetPostsSince`.
 		    ) centreChannelPost
 		    JOIN Posts post ON (
 			post.Id = centreChannelPost.Id
-		     OR post.RootId = centreChannelPost.Id
+                     OR post.RootId = centreChannelPost.Id
+		     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
 		    )
 		    WHERE
 			post.DeleteAt = 0
-		     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
+
+		     OR 
+
 
 
 
@@ -198,7 +201,7 @@ As it turns out, this is precisely the strategy used by `GetPostsSince`.
     FROM 
         Posts 
     WHERE 
-        ChannelId = "na7oxnzzbfd9pppud1q89trfze" 
+        ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw" 
     AND DeleteAt = 0 
     ORDER BY 
         CreateAt DESC 
@@ -219,7 +222,7 @@ As it turns out, this is precisely the strategy used by `GetPostsSince`.
             FROM
                 Posts
             WHERE
-                ChannelId = "na7oxnzzbfd9pppud1q89trfze"
+                ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw"
             AND DeleteAt = 0
             ORDER BY 
                 CreateAt DESC
@@ -231,7 +234,7 @@ As it turns out, this is precisely the strategy used by `GetPostsSince`.
      OR q1.RootId = q2.RootId
     )
     WHERE
-        ChannelId = "na7oxnzzbfd9pppud1q89trfze"
+        ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw"
     AND DeleteAt = 0
     ORDER BY 
         CreateAt)

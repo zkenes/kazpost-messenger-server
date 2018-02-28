@@ -393,7 +393,7 @@ run-server: start-docker ## Starts the server.
 	@echo Running mattermost for development
 
 	mkdir -p $(BUILD_WEBAPP_DIR)/dist/files
-	$(GO) run $(GOFLAGS) $(GO_LINKER_FLAGS) $(PLATFORM_FILES) --disableconfigwatch &
+	$(GO) run $(GOFLAGS) $(GO_LINKER_FLAGS) $(PLATFORM_FILES) # --disableconfigwatch
 
 run-cli: start-docker ## Runs CLI.
 	@echo Running mattermost for development
@@ -475,7 +475,7 @@ clean: stop-docker ## Clean up everything except persistant server data.
 	rm -Rf $(DIST_ROOT)
 	go clean $(GOFLAGS) -i ./...
 
-	cd $(BUILD_WEBAPP_DIR) && $(MAKE) clean
+	# cd $(BUILD_WEBAPP_DIR) && $(MAKE) clean
 
 	find . -type d -name data -not -path './vendor/*' | xargs rm -r
 	rm -rf logs

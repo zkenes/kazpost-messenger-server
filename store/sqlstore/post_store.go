@@ -462,40 +462,44 @@ func (s SqlPostStore) GetPosts(channelId string, offset int, limit int, allowFro
 			}
 		}
 
-		type postWithCentreChannelFlag struct {
+		type postWithWindowFlag struct {
 			model.Post
-			IsCentreChannel bool `json:"is_centre_channel"`
+			InWindow bool
 		}
 
-		var posts []*postWithCentreChannelFlag
+		var posts []*postWithWindowFlag
 		_, err := s.GetReplica().Select(&posts, `
-		    SELECT
-			post.*,
-			post.Id = centreChannelPost.Id AS IsCentreChannel 
-		    FROM (
 			SELECT
-			    Id,
-			    RootId
-			FROM
-			    Posts
+			    post.*,
+			    post.Id = windowPost.Id AS InWindow
+			FROM (
+			    SELECT
+				Id,
+				RootId
+			    FROM
+				Posts
+			    WHERE
+				ChannelId = :ChannelId
+			    AND DeleteAt = 0
+			    ORDER BY 
+				CreateAt DESC
+			    LIMIT :Limit OFFSET :Offset
+			) windowPost
+			JOIN Posts post ON (
+			    -- The posts in the window
+			    post.Id = windowPost.Id
+			    -- The root post of any replies in the window
+			 OR post.Id = windowPost.RootId
+			    -- The reply posts to all threads intersecting with the window.
+			 OR (post.RootId != '' AND post.RootId = windowPost.RootId)
+			    -- Fetch replies to the posts in the window.
+			 OR post.RootId = windowPost.Id
+			)
 			WHERE
-			    ChannelId = :ChannelId
-			AND DeleteAt = 0
+			    post.DeleteAt = 0
 			ORDER BY 
 			    CreateAt DESC
-			LIMIT :Limit OFFSET :Offset
-		    ) centreChannelPost
-		    JOIN Posts post ON (
-			post.Id = centreChannelPost.Id
-		     OR post.Id = centreChannelPost.RootId
-		     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
-		    )
-		    WHERE
-			post.DeleteAt = 0
-		    ORDER BY 
-		        CreateAt DESC
 		`, map[string]interface{}{"ChannelId": channelId, "Offset": offset, "Limit": limit})
-		// OR post.RootId = centreChannelPost.Id
 
 		if err != nil {
 			result.Err = model.NewAppError("SqlPostStore.GetLinearPosts", "store.sql_post.get_root_posts.app_error", nil, "channelId="+channelId+err.Error(), http.StatusInternalServerError)
@@ -504,7 +508,7 @@ func (s SqlPostStore) GetPosts(channelId string, offset int, limit int, allowFro
 
 			for _, post := range posts {
 				list.AddPost(&post.Post)
-				if post.IsCentreChannel {
+				if post.InWindow {
 					list.AddOrder(post.Id)
 				}
 			}

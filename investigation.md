@@ -67,7 +67,8 @@ network call.
 Observe that the innermost query matches the `getRootPosts` query, except for fetching only the
 root post ids in question. As this query occurs outside of a transaction, there is a possibility 
 for the duplicate `getRootPosts` query to find a different set of root posts and potentially return 
-incorrect results on a busy channel.
+incorrect results on a busy channel. This appears to be partly by design, as the `getRootPosts`
+and `getParentsPosts` are run concurrently.
 
 ## Query Improvements
 
@@ -87,12 +88,12 @@ The final `ORDER BY CreateAt` is superfluous. The results of `getParentsPosts` a
     }
 
 but `list.AddPost` puts the post into a map indexed by `Id`, and the underlying sort order for
-threads is discarded. (The order from `getRootPosts` is explicitly preserved.) Indeed, removing 
-ordering randomly (`ORDER BY RAND()`) and then removing the `ORDER BY` altogether has no impact on 
-the rendering of the RHS thread.
+threads is discarded. (The order from `getRootPosts` is explicitly preserved.) Indeed, ordering
+randomly (`ORDER BY RAND()`) and then removing the `ORDER BY` altogether has no impact on the
+output from the corresponding endpoint.
 
-This is at best a minor improvement, given the result size of a typical query, but it does remove
-a `Using temporary; Using filesort` in the query plan.
+However, this is at best a minor improvement, given the result size of a typical query. It will
+remove a `Using temporary; Using filesort` in the query plan (on MySQL).
 
 ### Merging `getRootPosts` and `getParentsPosts`
 
@@ -112,7 +113,7 @@ The posts returned by `getRootPosts` are processed as follows:
             list.AddOrder(p.Id)
     }
 
-This is almost exactly duplicates the handling of `getParentsPosts` above, except for recording
+This almost exactly duplicates the handling of `getParentsPosts` above, except for recording
 the order in which the root posts are returned. For completeness, the query run by `getRootPosts`
 is:
 
@@ -127,12 +128,12 @@ is:
         CreateAt DESC 
     LIMIT :Limit OFFSET :Offset
 
-Merging these two queries (removing the superfluous `ORDER BY` as above), while retaining the 
-underlying order:
-   
+Merging these two queries (removing the superfluous `ORDER BY` as above) and adding a bit to 
+identify the centre channel posts and thus retain the required order looks like this:
+
     SELECT
         post.*,
-        post.Id = centreChannelPost.Id AS is_centre_channel
+        post.Id = windowPost.Id AS InWindow
     FROM (
         SELECT
             Id,
@@ -145,96 +146,42 @@ underlying order:
         ORDER BY 
             CreateAt DESC
         LIMIT :Limit OFFSET :Offset
-    )
+    ) windowPost
     JOIN Posts post ON (
-        post.Id = centreChannelPost.Id
-     OR post.RootId = centreChannelPost.Id
-     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
+        -- The posts in the window
+        post.Id = windowPost.Id
+        -- The root post of any replies in the window
+     OR post.Id = windowPost.RootId
+        -- The reply posts to all threads intersecting with the window.
+     OR (post.RootId != '' AND post.RootId = windowPost.RootId)
+        -- Fetch replies to the posts in the window.
+     OR post.RootId = windowPost.Id
     )
     WHERE
         post.DeleteAt = 0
+    ORDER BY 
+        CreateAt DESC
 
-The computed `IsCentreChannel` gives enough context to rebuild the `Order` array in the `PostList`:
+The computed `InWindow` gives enough context to rebuild the `Order` array in the `PostList`:
 
     for _, p := range posts {
             list.AddPost(p)
-            if post.IsCentreChannel
-            list.AddOrder(p.Id)
+            if post.InWindow {
+                list.AddOrder(p.Id)
+            }
     }
 
+Note that the above query deviates slightly from the original in explicitly querying for replies to
+posts in the window:
 
-As it turns out, this is precisely the strategy used by `GetPostsSince`.
+        -- Fetch replies to the posts in the window.
+     OR post.RootId = windowPost.Id
 
+In the webapp, such replies are normally already loaded or within the window themselves. And
+permalinks use a different query (`getPostsAround`). But a client of the REST API won't get the
+full thread included in the response like they would at other offsets.
 
+All that being aside, does merging the query actually improve performance given that this no
+longer parallelizes the original two calls to `getRootPosts` and `getParentsPosts`?
 
-
-
-		    SELECT DISTINCT post.Id
-		    FROM (
-			SELECT
-			    Id,
-			    RootId
-			FROM
-			    Posts
-			WHERE
-			    ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw"
-			AND DeleteAt = 0
-			ORDER BY 
-			    CreateAt DESC
-			LIMIT 30 OFFSET 0
-		    ) centreChannelPost
-		    JOIN Posts post ON (
-			post.Id = centreChannelPost.Id
-                     OR post.RootId = centreChannelPost.Id
-		     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
-		    )
-		    WHERE
-			post.DeleteAt = 0
-
-		     OR 
-
-
-
-
-    (SELECT 
-        Id
-    FROM 
-        Posts 
-    WHERE 
-        ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw" 
-    AND DeleteAt = 0 
-    ORDER BY 
-        CreateAt DESC 
-    LIMIT 30 OFFSET 0)
-
-    UNION
-
-    (SELECT
-        Id
-    FROM
-        Posts q2
-    INNER JOIN (
-        SELECT DISTINCT
-            q3.RootId
-        FROM (
-            SELECT
-                RootId
-            FROM
-                Posts
-            WHERE
-                ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw"
-            AND DeleteAt = 0
-            ORDER BY 
-                CreateAt DESC
-            LIMIT 30 OFFSET 0
-        ) q3
-        WHERE q3.RootId != ''
-    ) q1 ON (
-        q1.RootId = q2.Id 
-     OR q1.RootId = q2.RootId
-    )
-    WHERE
-        ChannelId = "8x5wk46tjpni3p5f8k1zaxi5tw"
-    AND DeleteAt = 0
-    ORDER BY 
-        CreateAt)
+TODO: Load test...

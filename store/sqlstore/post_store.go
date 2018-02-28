@@ -699,8 +699,7 @@ func (s SqlPostStore) getParentsPosts(channelId string, offset int, limit int) s
 			    ON q1.RootId = q2.Id OR q1.RootId = q2.RootId
 			WHERE
 			    ChannelId = :ChannelId2
-			        AND DeleteAt = 0
-			ORDER BY CreateAt`,
+			        AND DeleteAt = 0`,
 			map[string]interface{}{"ChannelId1": channelId, "Offset": offset, "Limit": limit, "ChannelId2": channelId})
 		if err != nil {
 			result.Err = model.NewAppError("SqlPostStore.GetLinearPosts", "store.sql_post.get_parents_posts.app_error", nil, "channelId="+channelId+" err="+err.Error(), http.StatusInternalServerError)

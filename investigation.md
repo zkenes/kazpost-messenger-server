@@ -47,18 +47,22 @@ network call.
             FROM
                 Posts
             WHERE
-                ChannelId = :ChannelId1
+                ChannelId = :ChannelId
             AND DeleteAt = 0
-            ORDER BY CreateAt DESC
+            ORDER BY 
+                CreateAt DESC
             LIMIT :Limit OFFSET :Offset
         ) q3
         WHERE q3.RootId != ''
-    ) q1
-        ON q1.RootId = q2.Id OR q1.RootId = q2.RootId
+    ) q1 ON (
+        q1.RootId = q2.Id 
+     OR q1.RootId = q2.RootId
+    )
     WHERE
-        ChannelId = :ChannelId2
+        ChannelId = :ChannelId
     AND DeleteAt = 0
-    ORDER BY CreateAt
+    ORDER BY 
+        CreateAt
 
 Observe that the innermost query matches the `getRootPosts` query, except for fetching only the
 root post ids in question. As this query occurs outside of a transaction, there is a possibility 
@@ -84,17 +88,126 @@ The final `ORDER BY CreateAt` is superfluous. The results of `getParentsPosts` a
 
 but `list.AddPost` puts the post into a map indexed by `Id`, and the underlying sort order for
 threads is discarded. (The order from `getRootPosts` is explicitly preserved.) Indeed, removing 
-the `ORDER BY` has no impact on the rendering of the RHS thread.
+ordering randomly (`ORDER BY RAND()`) and then removing the `ORDER BY` altogether has no impact on 
+the rendering of the RHS thread.
 
 This is at best a minor improvement, given the result size of a typical query, but it does remove
 a `Using temporary; Using filesort` in the query plan.
 
+### Merging `getRootPosts` and `getParentsPosts`
 
+As noted above, `getParentsPosts` effectively embeds `getRootPosts`. Since it fetches all threads
+in the window, it also implicitly returns the same reply posts returned by `getRootPosts`. 
 
-as the window size is bounded, and contains at most thirty posts, and 
+The posts returned by `getRootPosts` are processed as follows:
 
+    rpc := s.getRootPosts(channelId, offset, limit)
+    // ...
+    rpr := <-rpc
+    // ...
+    posts := rpr.Data.([]*model.Post)
+    // ...
+    for _, p := range posts {
+            list.AddPost(p)
+            list.AddOrder(p.Id)
+    }
+
+This is almost exactly duplicates the handling of `getParentsPosts` above, except for recording
+the order in which the root posts are returned. For completeness, the query run by `getRootPosts`
+is:
+
+    SELECT 
+        * 
+    FROM 
+        Posts 
+    WHERE 
+        ChannelId = :ChannelId 
+    AND DeleteAt = 0 
+    ORDER BY 
+        CreateAt DESC 
+    LIMIT :Limit OFFSET :Offset
+
+Merging these two queries (removing the superfluous `ORDER BY` as above), while retaining the 
+underlying order:
+   
     SELECT
-        q2.*
+        post.*,
+        post.Id = centreChannelPost.Id AS is_centre_channel
+    FROM (
+        SELECT
+            Id,
+            RootId
+        FROM
+            Posts
+        WHERE
+            ChannelId = :ChannelId
+        AND DeleteAt = 0
+        ORDER BY 
+            CreateAt DESC
+        LIMIT :Limit OFFSET :Offset
+    )
+    JOIN Posts post ON (
+        post.Id = centreChannelPost.Id
+     OR post.RootId = centreChannelPost.Id
+     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
+    )
+    WHERE
+        post.DeleteAt = 0
+
+The computed `IsCentreChannel` gives enough context to rebuild the `Order` array in the `PostList`:
+
+    for _, p := range posts {
+            list.AddPost(p)
+            if post.IsCentreChannel
+            list.AddOrder(p.Id)
+    }
+
+
+As it turns out, this is precisely the strategy used by `GetPostsSince`.
+
+
+
+
+
+		    SELECT DISTINCT post.Id
+		    FROM (
+			SELECT
+			    Id,
+			    RootId
+			FROM
+			    Posts
+			WHERE
+			    ChannelId = "na7oxnzzbfd9pppud1q89trfze"
+			AND DeleteAt = 0
+			ORDER BY 
+			    CreateAt DESC
+			LIMIT 30 OFFSET 0
+		    ) centreChannelPost
+		    JOIN Posts post ON (
+			post.Id = centreChannelPost.Id
+		     OR post.RootId = centreChannelPost.Id
+		    )
+		    WHERE
+			post.DeleteAt = 0
+		     OR (post.RootId != '' AND post.RootId = centreChannelPost.RootId)
+
+
+
+    (SELECT 
+        Id
+    FROM 
+        Posts 
+    WHERE 
+        ChannelId = "na7oxnzzbfd9pppud1q89trfze" 
+    AND DeleteAt = 0 
+    ORDER BY 
+        CreateAt DESC 
+    LIMIT 30 OFFSET 0)
+
+    UNION
+
+    (SELECT
+        Id
     FROM
         Posts q2
     INNER JOIN (
@@ -106,15 +219,19 @@ as the window size is bounded, and contains at most thirty posts, and
             FROM
                 Posts
             WHERE
-                ChannelId = "omrtkrge6iref8skenu6ypr6wh"
+                ChannelId = "na7oxnzzbfd9pppud1q89trfze"
             AND DeleteAt = 0
-            ORDER BY CreateAt DESC
+            ORDER BY 
+                CreateAt DESC
             LIMIT 30 OFFSET 0
         ) q3
         WHERE q3.RootId != ''
-    ) q1
-        ON q1.RootId = q2.Id OR q1.RootId = q2.RootId
+    ) q1 ON (
+        q1.RootId = q2.Id 
+     OR q1.RootId = q2.RootId
+    )
     WHERE
-        ChannelId = "omrtkrge6iref8skenu6ypr6wh"
+        ChannelId = "na7oxnzzbfd9pppud1q89trfze"
     AND DeleteAt = 0
-    ORDER BY CreateAt
+    ORDER BY 
+        CreateAt)

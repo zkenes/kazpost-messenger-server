@@ -333,8 +333,15 @@ func (a *App) sendNotificationEmail(post *model.Post, user *model.User, channel 
 			// if the call fails, assume that the interval has not been explicitly set and batch the notifications
 			sendBatched = true
 		} else {
+
+			userStatus, err := a.GetStatus(user.Id)
+			if err != nil {
+				l4g.Error("Unable to retrieve user status", err.Error)
+			}
+			userIsInFocusMode := userStatus.Status == model.STATUS_FOCUS
+
 			// if the user has chosen to receive notifications immediately, don't batch them
-			sendBatched = result.Data.(model.Preference).Value != model.PREFERENCE_EMAIL_INTERVAL_NO_BATCHING_SECONDS
+			sendBatched = (result.Data.(model.Preference).Value != model.PREFERENCE_EMAIL_INTERVAL_NO_BATCHING_SECONDS) || userIsInFocusMode
 		}
 
 		if sendBatched {

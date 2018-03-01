@@ -157,7 +157,7 @@ func (job *EmailBatchingJob) checkPendingNotifications(now time.Time, handler fu
 				for _, channelMember := range *channelMembers {
 					if channelMember.LastViewedAt >= batchStartTime {
 						l4g.Debug("Deleted notifications for user %s", userId)
-						delete(job.pendingNotifications, userId)
+						// delete(job.pendingNotifications, userId)
 						break
 					}
 				}
@@ -181,8 +181,18 @@ func (job *EmailBatchingJob) checkPendingNotifications(now time.Time, handler fu
 			}
 		}
 
+		userStatus, err := job.app.GetStatus(userId)
+		if err != nil {
+			l4g.Error("Unable to retrieve user status", err.Error)
+		}
+		userIsInFocusMode := userStatus.Status == model.STATUS_FOCUS
+
+		l4g.Debug("userIsInFocusMode", userIsInFocusMode)
+		l4g.Debug("condition part 1", now.Sub(time.Unix(batchStartTime/1000, 0)))
+		l4g.Debug("condition part 2", time.Duration(interval)*time.Second)
+
 		// send the email notification if it's been long enough
-		if now.Sub(time.Unix(batchStartTime/1000, 0)) > time.Duration(interval)*time.Second {
+		if now.Sub(time.Unix(batchStartTime/1000, 0)) > time.Duration(interval)*time.Second && !userIsInFocusMode {
 			job.app.Go(func(userId string, notifications []*batchedNotification) func() {
 				return func() {
 					handler(userId, notifications)

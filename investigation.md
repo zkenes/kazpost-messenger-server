@@ -9,7 +9,16 @@ within the code base.
 * *root post*: a post not made in reply to any other post
 * *reply post*: a post made in reply to another post
 * *thread*: a set of posts including a root post and any reply posts
-* *window*: a subset of a channel's posts, queried by offset and limit
+* *window*: a subset of a channel's posts, queried by offset and limit in this document
+
+## Executive Summary
+
+There is substantial room for improvement, as well as fixing a bug:
+* the query includes a superfluous ORDER BY (minor savings)
+* the query doesn't fetch all threads in all cases (minor expense)
+* the default query plan is horribly inefficient, and given the constraints of the problem, we
+can improve performance by three orders of magnitude in the average case, and one order of
+magnitude in the worst case (huge savings!)
 
 ## Overview
 
@@ -19,20 +28,30 @@ recent posts for the given channel.
 
 `GetPosts` first invokes `getRootPosts`. This method is somewhat of a misnomer, since reply posts
 are visually interleaved with root posts, and this method fetches a window potentially containing 
-both.
+both. This corresponding query is as follows:
+
+    SELECT 
+        * 
+    FROM 
+        Posts 
+    WHERE 
+        ChannelId = :ChannelId 
+    AND DeleteAt = 0 
+    ORDER BY 
+        CreateAt DESC 
+    LIMIT :Limit OFFSET :Offset
 
 `GetPosts` then invokes `getParentsPosts`. This method, itself awkwardly named, fetches all threads
 having posts in the same window. For example, if a root past was made last year, and received
 100 reply posts, the most recent of which occurred in the current window, that root post and all 
-100 reply posts are loaded by `getParentsPosts`, along with any other such threads.
+100 reply posts are loaded by `getParentsPosts`, along with any other such threads. The effort
+here overlaps with `getRootPosts` for any thread posts in the window.
 
-This second query supplies a count of replies for display in the centre channel when hovering 
-over a post. It also allows the RHS for a given thread to be opened without any additional 
-network call.
+This results of this second query are used client side to render a count of replies when hovering
+over a root post, as well as allowing the RHS for a given thread to be opened without any
+additional network call.
 
-## SQL Query
-
-`getParentsPosts` runs the following SQL query:
+The query in question is:
 
     SELECT
         q2.*
@@ -47,11 +66,11 @@ network call.
             FROM
                 Posts
             WHERE
-                ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+                ChannelId = :ChannelId
             AND DeleteAt = 0
             ORDER BY 
                 CreateAt DESC
-            LIMIT 30 OFFSET 0
+            LIMIT :Limit OFFSET :Offset
         ) q3
         WHERE q3.RootId != ''
     ) q1 ON (
@@ -59,18 +78,25 @@ network call.
      OR q1.RootId = q2.RootId
     )
     WHERE
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+        ChannelId = :ChannelId
     AND DeleteAt = 0
     ORDER BY 
         CreateAt
 
 Observe that the innermost query matches the `getRootPosts` query, except for fetching only the
-root post ids in question. As this query occurs outside of a transaction, there is a possibility 
-for the duplicate `getRootPosts` query to find a different set of root posts and potentially return 
-incorrect results on a busy channel. This appears to be partly by design, as the `getRootPosts`
-and `getParentsPosts` are run concurrently.
+root post ids in question. As `getParentsPosts` and `getRootPosts` queries are run concurrently
+and outside of a repeatable read transaction, there is a possibility that they arrive at a 
+different definition of the window on a busy channel. This in turn might lead to "heisenbugs" where
+the reply count or RHS are not correct.
 
 ## Query Improvements
+
+As a baseline, the unmodified queries that make up a call to `GetPosts` on a database with ten 
+channels and about 940K posts averages as follows:
+
+| getRootPosts | getParentsPosts |
+| ------------ | --------------- |
+| 0.00s        | 3.108s          |
 
 ### Superfluous ORDER BY
 
@@ -88,12 +114,171 @@ The final `ORDER BY CreateAt` is superfluous. The results of `getParentsPosts` a
     }
 
 but `list.AddPost` puts the post into a map indexed by `Id`, and the underlying sort order for
-threads is discarded. (The order from `getRootPosts` is explicitly preserved.) Indeed, ordering
-randomly (`ORDER BY RAND()`) and then removing the `ORDER BY` altogether has no impact on the
-output from the corresponding endpoint.
+threads is discarded. (Note that the order from `getRootPosts` is explicitly preserved in a
+separate array.) Indeed, ordering randomly (`ORDER BY RAND()`) or removing the `ORDER BY` 
+altogether has no impact on the output from the corresponding endpoint.
 
-However, this is at best a minor improvement, given the result size of a typical query. It will
-remove a `Using temporary; Using filesort` in the query plan (on MySQL).
+This is at best a minor improvement, given the result size of a typical query, but it will remove
+a `Using temporary; Using filesort` in the query plan (on MySQL) without any downside. An average
+of ten runs shows:
+
+| getParentsPosts | + removing ORDER BY |
+| --------------- | ------------------- |
+| 3.108s          | 3.067               |
+
+### Fixing missing replies
+
+The existing JOIN conditions on the query could be commented as follows:
+
+       -- The root post of any replies in the window
+       q1.RootId = q2.Id 
+       -- The reply posts to all threads intersecting with the window.
+    OR q1.RootId = q2.RootId
+
+however it is missing a case:
+
+        -- The reply posts to the window posts, themselves not in the window
+    OR q1.Id = q2.RootId
+
+Specifically, this handles the case where a reply to the post in the window isn't in the window
+itself. In practice, given that the webapp starts at offset 0 and queries backwards on demand, any 
+replies to posts in the window will have already been in a loaded window themselves. Permalinks 
+at first seems like a case where this behaviour would manifest, but they employs a different
+query (`getPostsAround`).
+
+So the only case where this might matter is a client of the REST API building a resultset and
+starting from a non-zero offset. The patched version has a minimal negative impact on performance:
+
+| getParentsPosts | + removing ORDER BY | + patching case |
+| --------------- | ------------------- | --------------- |
+| 3.108s          | 3.067               | 3.085           |
+
+### Improving the query plan
+
+The query plan with the changes above shows MySQL using an index merge on `idx_posts_channel_id`
+and `idx_posts_delete_at` to fetch the inner root posts, a filter on the `Posts` channel using
+`idx_posts_channel_id_delete_at_create_at`, and a `Block Nested Loop` to join the results together.
+
+This is unfortunate, since the inner query is always a constrained set of post ids. It might be
+faster just to use the `PRIMARY` and `idx_posts_root_id` indices. To start, we can force that
+using proprietary hints:
+
+    FROM
+        Posts post FORCE INDEX (PRIMARY, idx_posts_root_id)
+
+The results are startling, though not surprising given the nuances of query planners:
+
+| getParentsPosts | + removing ORDER BY | + patching case | + hinting |
+| --------------- | ------------------- | --------------- | --------- |
+| 3.108s          | 3.067               | 3.085           | 0.005     |
+
+Does this still work with a larger limit, say the limit of `60` used by load tests?
+
+| getParentsPosts + removing ORDER BY + patching case (60) | + hinting |
+| -------------------------------------------------------- | --------- |
+| 3.201                                                    | 0.002     |
+
+Yes! (The numbers being better than the case of `30` suggest that the query is not bound by the 
+usual performance constraints.) What about `1000`, the maximum limit allowed? Not as much:
+
+| getParentsPosts + removing ORDER BY + patching case (1000) | + hinting |
+| ---------------------------------------------------------- | --------- |
+| 6.857                                                      | 7.984     |
+
+Why not? The query plan for higher limits is very different, suggesting that MySQL is once again
+taking a different path. Before examining further, let's rewrite the query in a way that preserves
+these semantics but avoids proprietary hints at the expense of some MySQL-imposed verbosity:
+
+    SELECT
+        *
+    FROM
+        Posts
+    WHERE
+        Id IN (SELECT * FROM (
+            -- The root post of any replies in the window
+            (SELECT * FROM (
+                SELECT
+                    CASE RootId
+                        WHEN '' THEN NULL
+                        ELSE RootId
+                    END
+                FROM
+                    Posts
+                WHERE
+                    ChannelId = :ChannelId
+                AND DeleteAt = 0
+                ORDER BY 
+                    CreateAt DESC
+                LIMIT :Limit OFFSET :Offset
+            ) x )
+
+            UNION
+
+            -- The reply posts to all threads intersecting with the window.
+            (
+                SELECT
+                    Id
+                FROM
+                    Posts
+                WHERE RootId IN (SELECT * FROM (
+                    SELECT
+                        CASE RootId
+                            WHEN '' THEN NULL
+                            ELSE RootId
+                        END
+                    FROM
+                        Posts
+                    WHERE
+                        ChannelId = :ChannelId
+                    AND DeleteAt = 0
+                    ORDER BY 
+                        CreateAt DESC
+                    LIMIT :Limit OFFSET :Offset
+                ) x )
+            )
+
+            UNION
+
+            -- The reply posts to the window posts, themselves not in the window
+            (
+                SELECT
+                    Id
+                FROM
+                    Posts
+                WHERE RootId IN (SELECT * FROM (
+                    SELECT
+                        Id
+                    FROM
+                        Posts
+                    WHERE
+                        ChannelId = :ChannelId
+                    AND DeleteAt = 0
+                    ORDER BY 
+                        CreateAt DESC
+                    LIMIT :Limit OFFSET :Offset
+                ) x )
+            )
+        ) x )
+    AND 
+        DeleteAt = 0;
+
+The performance is similar to the hinting case for limits of `30` and `60`:
+
+| getParentsPosts + removing ORDER BY + patching case (30) | + hinting | rewritten |
+| --------------- | ------------------- | ---------------- | --------- | --------- |
+| 3.108s          | 3.067               | 3.085            | 0.005     | 0.007     |
+
+| getParentsPosts + removing ORDER BY + patching case (60) | + hinting | rewritten |
+| -------------------------------------------------------- | --------- | --------- |
+| 3.201                                                    | 0.002     | 0.006     |
+
+and blows everything else out of the water:
+
+| getParentsPosts + removing ORDER BY + patching case (1000) | + hinting | rewritten |
+| ---------------------------------------------------------- | --------- | --------- |
+| 6.857                                                      | 7.984     | 0.27      |
+
+Hurrah for foiling the query planner!
 
 ### Merging `getRootPosts` and `getParentsPosts`
 
@@ -114,197 +299,9 @@ The posts returned by `getRootPosts` are processed as follows:
     }
 
 This almost exactly duplicates the handling of `getParentsPosts` above, except for recording
-the order in which the root posts are returned. For completeness, the query run by `getRootPosts`
-is:
-
-    SELECT 
-        * 
-    FROM 
-        Posts 
-    WHERE 
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e" 
-    AND DeleteAt = 0 
-    ORDER BY 
-        CreateAt DESC 
-    LIMIT 30 OFFSET 0
-
-Merging these two queries (removing the superfluous `ORDER BY` as above) and adding a bit to 
-identify the centre channel posts and thus extract the required order looks like this:
-
-    SELECT
-        post.*,
-        post.Id = windowPost.Id AS InWindow
-    FROM (
-        SELECT
-            Id,
-            RootId
-        FROM
-            Posts
-        WHERE
-            ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-        AND DeleteAt = 0
-        ORDER BY 
-            CreateAt DESC
-        LIMIT 30 OFFSET 0
-    ) windowPost
-    JOIN Posts post ON (
-        -- The posts in the window
-        post.Id = windowPost.Id
-        -- The root post of any replies in the window
-     OR post.Id = windowPost.RootId
-        -- The reply posts to all threads intersecting with the window.
-     OR (post.RootId != '' AND post.RootId = windowPost.RootId)
-        -- Fetch replies to the posts in the window.
-     OR post.RootId = windowPost.Id
-    )
-    WHERE
-        post.DeleteAt = 0
-    ORDER BY 
-        CreateAt DESC
-
-The computed `InWindow` gives enough context to rebuild the `Order` array in the `PostList`:
-
-    for _, p := range posts {
-            list.AddPost(p)
-            if post.InWindow {
-                list.AddOrder(p.Id)
-            }
-    }
-
-Note that the above query deviates slightly from the original in explicitly querying for replies to
-posts in the window:
-
-        -- Fetch replies to the posts in the window.
-     OR post.RootId = windowPost.Id
-
-In the webapp, such replies are normally already loaded or within the window themselves. And
-permalinks use a different query (`getPostsAround`). But a client of the REST API won't get the
-full thread included in the response like they would at other offsets. Patching the original
-`getParentsPosts` query to fix this might look like, the following:
-
-    SELECT
-        q2.*
-    FROM
-        Posts q2
-    INNER JOIN (
-        SELECT DISTINCT
-            q3.RootId
-        FROM (
-            SELECT
-                COALESCE(RootId, Id) AS RootId
-            FROM
-                Posts
-            WHERE
-                ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-            AND DeleteAt = 0
-            ORDER BY 
-                CreateAt DESC
-            LIMIT 30 OFFSET 0
-        ) q3
-        WHERE q3.RootId != ''
-    ) q1 ON (
-        q1.RootId = q2.Id 
-     OR q1.RootId = q2.RootId
-    )
-    WHERE
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-    AND DeleteAt = 0
-    ORDER BY 
-        CreateAt
-
-noting the addition of the following within the inner query:
-
-    COALESCE(RootId, Id) AS RootId
-
-All that being aside, does merging the query actually improve performance given that this no
-longer parallelizes the original two calls to `getRootPosts` and `getParentsPosts`? Ten runs
-of each of the queries on a local MySQL instance with 240K posts yielded the following minimums:
-
-| getRootPosts | getParentsPosts | getParentsPosts (patched) | Merged |
-| ------------ | --------------- | ------------------------- | ------ |
-| 0.00s        | 0.19s           | 0.19s                     | 2.74s  |
-
-Hmm, something is amiss. Running `EXPLAIN FORMAT=json` on the merged query shows a 
-`Block Nested Loop` on the `Posts` table. Looks like MySQL doesn't even bother trying to use an
-index. Adding in the `ChannelId` constraint to the outer `SELECT`:
-
-    WHERE
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-    AND DeleteAt = 0
-
-causes MySQL to choose the `idx_posts_channel_id_delete_at_create_at` index and results in:
-
-| getRootPosts | getParentsPosts | getParentsPosts (patched) | Merged (with channel contraint) |
-| ------------ | --------------- | ------------------------- | ------------------------------- |
-| 0.00s        | 0.19s           | 0.19s                     | 0.35s                           |
-
-Much better, but also twice as slow as running `getRootPosts` and the patched `getParentsPosts`
-sequentially, much less concurrently. Does it get any better with a larger `Posts` table, say 960K?
-
-Nope:
-
-| getRootPosts | getParentsPosts | getParentsPosts (patched) | Merged (with channel contraint) |
-| ------------ | --------------- | ------------------------- | ------------------------------- |
-| 0.00s        | 2.83s           | 2.81s                     | 3.68s                           |
-
-Stepping back, the goal here was to select the `Id` and `RootId` of the window posts (a small
-number of posts), and then fetch the related posts from the `Posts` table. That could be lightening
-quick, but MySQL insists on doing a table scan. What if we drop the `ChannelId` constraint and
-rewrite the query in a MySQL-specific way that forces that behaviour?
-
-    SELECT
-        post.*,
-        post.Id = windowPost.Id AS InWindow
-    FROM
-        Posts post FORCE INDEX (PRIMARY, idx_posts_root_id)
-    JOIN (
-        SELECT
-            Id,
-            CASE RootId
-                WHEN "" THEN NULL
-                ELSE RootId
-            END AS RootId
-        FROM
-            Posts
-        WHERE
-            ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-        AND DeleteAt = 0
-        ORDER BY 
-            CreateAt DESC
-        LIMIT 30 OFFSET 0
-    ) windowPost ON (
-        -- The posts in the window
-        post.Id = windowPost.Id
-        -- The root post of any replies in the window
-     OR post.Id = windowPost.RootId
-        -- The reply posts to all threads intersecting with the window.
-     OR post.RootId = windowPost.RootId
-        -- Fetch replies to the posts in the window.
-     OR post.RootId = windowPost.Id
-    ) 
-    WHERE
-        DeleteAt = 0
-    ORDER BY 
-        CreateAt DESC
-
-Wow! And this is still on the larger table size:
-
-| getRootPosts | getParentsPosts | getParentsPosts (patched) | Merged (hints) |
-| ------------ | --------------- | ------------------------- | -------------- |
-| 0.00s        | 2.83s           | 2.81s                     | 0.02s          |
-
-Using an `EXPLAIN`, MySQL stopped doing a table scan in favour of a 
-
-    "range_checked_for_each_record": "index map: 0x21"
-
-Which effectively means it's using the `PRIMARY` and `idx_posts_root_id` indices, and doing
-an index merge after selecting against both. This is basically what I had hoped MySQL would have
-done in the first place.
-
-Unfortunately, query hints are database-specific, and it's unclear if Aurora supports index merges
-at all. Can we rewrite the query in a way that gets the desired behaviour naturally? (Note that
-MySQL has lots of limitations that make the following needlessly verbose. Oh for support for
-CTEs!)
+the order in which the root posts are returned. Though the performance issues are resolved by
+the improvements above, we could avoid sometimes fetching duplicate data by truly running both
+queries at once:
 
     SELECT
         *,
@@ -314,11 +311,11 @@ CTEs!)
             FROM
                 Posts
             WHERE
-                ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+                ChannelId = :ChannelId
             AND DeleteAt = 0
             ORDER BY 
                 CreateAt DESC
-            LIMIT 30 OFFSET 0
+            LIMIT :Limit OFFSET :Offset
         ) x) AS InWindow
     FROM
         Posts
@@ -331,11 +328,11 @@ CTEs!)
                 FROM
                     Posts
                 WHERE
-                    ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+                    ChannelId = :ChannelId
                 AND DeleteAt = 0
                 ORDER BY 
                     CreateAt DESC
-                LIMIT 30 OFFSET 0
+                LIMIT :Limit OFFSET :Offset
             ) x )
 
             UNION
@@ -350,11 +347,11 @@ CTEs!)
                 FROM
                     Posts
                 WHERE
-                    ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+                    ChannelId = :ChannelId
                 AND DeleteAt = 0
                 ORDER BY 
                     CreateAt DESC
-                LIMIT 30 OFFSET 0
+                LIMIT :Limit OFFSET :Offset
             ) x )
 
             UNION
@@ -374,11 +371,11 @@ CTEs!)
                     FROM
                         Posts
                     WHERE
-                        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+                        ChannelId = :ChannelId
                     AND DeleteAt = 0
                     ORDER BY 
                         CreateAt DESC
-                    LIMIT 30 OFFSET 0
+                    LIMIT :Limit OFFSET :Offset
                 ) x )
             )
 
@@ -396,184 +393,47 @@ CTEs!)
                     FROM
                         Posts
                     WHERE
-                        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
+                        ChannelId = :ChannelId
                     AND DeleteAt = 0
                     ORDER BY 
                         CreateAt DESC
-                    LIMIT 30 OFFSET 0
+                    LIMIT :Limit OFFSET :Offset
                 ) x )
             )
         ) x )
     AND 
         DeleteAt = 0;
 
+The computed `InWindow` gives enough context to rebuild the `Order` array in the `PostList`:
 
-| getRootPosts | getParentsPosts | getParentsPosts (patched) | Merged (inlined) |
-| ------------ | --------------- | ------------------------- | ---------------- |
-| 0.00s        | 2.83s           | 2.81s                     | 0.02s            |
+    for _, p := range posts {
+            list.AddPost(p)
+            if post.InWindow {
+                list.AddOrder(p.Id)
+            }
+    }
 
+Running this combined query for limits of `30`, `60` and `1000` show the query to be about as fast
+as running `getRootPosts` and `getParentsPosts` concurrently:
 
+| getRootPosts (30) | getParentsPosted rewritten (30) | merged getPosts (30) |
+|-------------------|---------------------------------|----------------------|
+| 0.00s             | 0.007                           | 0.007                |
 
+| getRootPosts (60) | getParentsPosted rewritten (60) | merged getPosts (60) |
+|-------------------|---------------------------------|----------------------|
+| 0.00s             | 0.006                           | 0.008                |
 
+| getRootPosts (1000) | getParentsPosted rewritten (1000) | merged getPosts (1000) |
+|---------------------|-----------------------------------|------------------------|
+| 0.009s              | 0.27                              | 0.269                  |
 
----------
+But might yield some minor network savings for having to transmit the data to the client.
 
-`idx_posts_channel_id_delete_at_create_at` index to constrain to the channel first and then  instead of, say, 
+If MySQL were self-consistent with respect to subqueries, this would also eliminate the potential
+for a race condition, but I suspect (but have not verified) that it is not. In more recent versions
+of MySQL (and Postgres), we could leverage CTEs to achieve this and simplify the query.
 
+## Follow-up
 
-4u1zsjt8hinkuxzy76tdgygf5e
-
-getRootPosts:
-
-    SELECT 
-        * 
-    FROM 
-        Posts 
-    WHERE 
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e" 
-    AND DeleteAt = 0 
-    ORDER BY 
-        CreateAt DESC 
-    LIMIT 30 OFFSET 0
-
-getParentsPosts:
-
-    SELECT
-        q2.*
-    FROM
-        Posts q2
-    INNER JOIN (
-        SELECT DISTINCT
-            q3.RootId
-        FROM (
-            SELECT
-                RootId
-            FROM
-                Posts
-            WHERE
-                ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-            AND DeleteAt = 0
-            ORDER BY 
-                CreateAt DESC
-            LIMIT 30 OFFSET 0
-        ) q3
-        WHERE q3.RootId != ''
-    ) q1 ON (
-        q1.RootId = q2.Id 
-     OR q1.RootId = q2.RootId
-    )
-    WHERE
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-    AND DeleteAt = 0
-    ORDER BY 
-        CreateAt
-
-getParentsPosts (patched):
-
-    SELECT
-        q2.*
-    FROM
-        Posts q2
-    INNER JOIN (
-        SELECT DISTINCT
-            q3.RootId
-        FROM (
-            SELECT
-                COALESCE(RootId, Id) AS RootId
-            FROM
-                Posts
-            WHERE
-                ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-            AND DeleteAt = 0
-            ORDER BY 
-                CreateAt DESC
-            LIMIT 30 OFFSET 0
-        ) q3
-        WHERE q3.RootId != ''
-    ) q1 ON (
-        q1.RootId = q2.Id 
-     OR q1.RootId = q2.RootId
-    )
-    WHERE
-        ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-    AND DeleteAt = 0
-    ORDER BY 
-        CreateAt
-
-merged (FAST!)
-
-    SELECT
-        post.*,
-        post.Id = windowPost.Id AS InWindow
-    FROM
-        Posts post FORCE INDEX (PRIMARY, idx_posts_root_id)
-    JOIN (
-        SELECT
-            Id,
-            CASE RootId
-                WHEN "" THEN NULL
-                ELSE RootId
-            END AS RootId
-        FROM
-            Posts
-        WHERE
-            ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-        AND DeleteAt = 0
-        ORDER BY 
-            CreateAt DESC
-        LIMIT 30 OFFSET 0
-    ) windowPost ON (
-        -- The posts in the window
-        post.Id = windowPost.Id
-        -- The root post of any replies in the window
-     OR post.Id = windowPost.RootId
-        -- The reply posts to all threads intersecting with the window.
-     OR post.RootId = windowPost.RootId
-        -- Fetch replies to the posts in the window.
-     OR post.RootId = windowPost.Id
-    ) 
-    WHERE
-        DeleteAt = 0
-    AND ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-    ORDER BY 
-        CreateAt DESC
-
-merged (FAST, 2!)
-
-    SELECT
-        post.*,
-        post.Id = windowPost.Id AS InWindow
-    FROM
-        Posts post IGNORE INDEX (idx_posts_channel_id_delete_at_create_at)
-    JOIN (
-        SELECT
-            Id,
-            CASE RootId
-                WHEN "" THEN NULL
-                ELSE RootId
-            END AS RootId
-        FROM
-            Posts
-        WHERE
-            ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-        AND DeleteAt = 0
-        ORDER BY 
-            CreateAt DESC
-        LIMIT 30 OFFSET 0
-    ) windowPost ON (
-        -- The posts in the window
-        post.Id = windowPost.Id
-        -- The root post of any replies in the window
-     OR post.Id = windowPost.RootId
-
-        -- The reply posts to all threads intersecting with the window.
-     OR post.RootId = windowPost.RootId
-        -- Fetch replies to the posts in the window.
-     OR post.RootId = windowPost.Id
-    ) 
-    WHERE
-        DeleteAt = 0
-    AND ChannelId = "4u1zsjt8hinkuxzy76tdgygf5e"
-    ORDER BY 
-        CreateAt DESC
 

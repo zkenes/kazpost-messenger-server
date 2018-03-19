@@ -13,6 +13,23 @@ import (
 	"github.com/mattermost/mattermost-server/model"
 )
 
+func (a *App) CheckForClienSideCert(r *http.Request) (string, string, string) {
+	pem := r.Header.Get("X-SSL-Client-Cert") // mapped to $ssl_client_cert from nginx
+	subject := r.Header.Get("X-SSL-Client-Cert-Subject-DN") // mapped to $ssl_client_s_dn from nginx
+	email := ""
+
+	if len(subject) > 0 {
+		for _, v := range strings.Split(subject, "/") {
+			kv := strings.Split(v, "=")
+			if len (kv) == 2 && kv[0] == "emailAddress" {
+				email = kv[1]
+			}
+		}
+	}
+
+	return pem, subject, email
+}
+
 func (a *App) AuthenticateUserForLogin(id, loginId, password, mfaToken, deviceId string, ldapOnly bool) (*model.User, *model.AppError) {
 	if len(password) == 0 {
 		err := model.NewAppError("AuthenticateUserForLogin", "api.user.login.blank_pwd.app_error", nil, "", http.StatusBadRequest)
@@ -37,6 +54,17 @@ func (a *App) AuthenticateUserForLogin(id, loginId, password, mfaToken, deviceId
 			}
 			return nil, err
 		}
+	}
+
+	// If client side cert is enable and it's checking as a primary source
+	// then trust the proxy and cert that the correct user is supplied and allow
+	// them access
+	if *a.Config().ExperimentalSettings.ClientSideCertEnable && *a.Config().ExperimentalSettings.ClientSideCertCheck == model.CLIENT_SIDE_CERT_CHECK_PRIMARY_AUTH {
+		if a.Metrics != nil {
+			a.Metrics.IncrementLogin()
+		}
+
+		return user, nil
 	}
 
 	// and then authenticate them

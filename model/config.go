@@ -156,6 +156,9 @@ const (
 	COMPLIANCE_EXPORT_TYPE_GLOBALRELAY = "globalrelay"
 	GLOBALRELAY_CUSTOMER_TYPE_A9       = "A9"
 	GLOBALRELAY_CUSTOMER_TYPE_A10      = "A10"
+
+	CLIENT_SIDE_CERT_CHECK_PRIMARY_AUTH = "primary"
+	CLIENT_SIDE_CERT_CHECK_SECONDARY_AUTH = "secondary"
 )
 
 type ServiceSettings struct {
@@ -518,6 +521,21 @@ func (s *MetricsSettings) SetDefaults() {
 
 	if s.BlockProfileRate == nil {
 		s.BlockProfileRate = NewInt(0)
+	}
+}
+
+type ExperimentalSettings struct {
+	ClientSideCertEnable *bool
+	ClientSideCertCheck *string
+}
+
+func (s *ExperimentalSettings) SetDefaults() {
+	if s.ClientSideCertEnable == nil {
+		s.ClientSideCertEnable = NewBool(false)
+	}
+
+	if s.ClientSideCertCheck == nil {
+		s.ClientSideCertCheck = NewString(CLIENT_SIDE_CERT_CHECK_SECONDARY_AUTH)
 	}
 }
 
@@ -1723,6 +1741,7 @@ type Config struct {
 	NativeAppSettings     NativeAppSettings
 	ClusterSettings       ClusterSettings
 	MetricsSettings       MetricsSettings
+	ExperimentalSettings  ExperimentalSettings
 	AnalyticsSettings     AnalyticsSettings
 	WebrtcSettings        WebrtcSettings
 	ElasticsearchSettings ElasticsearchSettings
@@ -1783,6 +1802,7 @@ func (o *Config) SetDefaults() {
 	o.PasswordSettings.SetDefaults()
 	o.TeamSettings.SetDefaults()
 	o.MetricsSettings.SetDefaults()
+	o.ExperimentalSettings.SetDefaults()
 	o.SupportSettings.SetDefaults()
 	o.AnnouncementSettings.SetDefaults()
 	o.ThemeSettings.SetDefaults()

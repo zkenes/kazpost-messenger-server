@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewId(t *testing.T) {
@@ -43,6 +45,17 @@ func TestAppErrorJunk(t *testing.T) {
 	if "body: <html><body>This is a broken test</body></html>" != rerr.DetailedError {
 		t.Fatal()
 	}
+}
+
+func TestCopyStringMap(t *testing.T) {
+	itemKey := "item1"
+	originalMap := make(map[string]string)
+	originalMap[itemKey] = "val1"
+
+	copyMap := CopyStringMap(originalMap)
+	copyMap[itemKey] = "changed"
+
+	assert.Equal(t, "val1", originalMap[itemKey])
 }
 
 func TestMapJson(t *testing.T) {

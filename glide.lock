@@ -1,5 +1,13 @@
+<<<<<<< HEAD
 hash: 287b82849f1c7303ee3eb29c9d0879d404469f7df2ba9b37828e55b0320ef11f
 updated: 2018-03-21T13:01:34.996412416+01:00
+||||||| parent of eb9611872... glide update to get go-sqlite3
+hash: 45dfd918601ab8933d9227e760ccb7c8a4dafa1327c0566cdc8b0837ef247a50
+updated: 2018-04-10T10:00:01.029958-04:00
+=======
+hash: 45dfd918601ab8933d9227e760ccb7c8a4dafa1327c0566cdc8b0837ef247a50
+updated: 2018-04-10T10:10:57.516295-04:00
+>>>>>>> eb9611872... glide update to get go-sqlite3
 imports:
 - name: github.com/alecthomas/log4go
   version: 3fbce08846379ec7f4f6bc7fce6dd01ce28fae4c
@@ -283,4 +291,6 @@ imports:
   - store/memstore
 - name: gopkg.in/yaml.v2
   version: d670f9405373e636a5a2765eea47fac0c9bc91a4
-testImports: []
+testImports:
+- name: github.com/mattn/go-sqlite3
+  version: 6c771bb9887719704b210e87e934f08be014bdb1

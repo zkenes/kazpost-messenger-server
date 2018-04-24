@@ -9,7 +9,7 @@ for fileType in GoFiles; do
             # Third-party, doesn't require a header.
             ;;
         *)
-            if ! grep 'Mattermost, Inc. All Rights Reserved.' $file -q; then
+            if ! grep 'TinkerTech, Inc. All Rights Reserved.' $file -q; then
                 >&2 echo "FAIL: $file is missing a license header."
                 ((count++))
             fi

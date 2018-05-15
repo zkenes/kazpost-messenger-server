@@ -28,10 +28,10 @@ func TestHelpCommand(t *testing.T) {
 	}
 
 	th.App.UpdateConfig(func(cfg *model.Config) {
-		*cfg.SupportSettings.HelpLink = "https://docs.mattermost.com/guides/user.html"
+		*cfg.SupportSettings.HelpLink = "https://docs.tink.com/guides/user.html"
 	})
 	rs2 := Client.Must(Client.Command(channel.Id, "/help ")).Data.(*model.CommandResponse)
-	if rs2.GotoLocation != "https://docs.mattermost.com/guides/user.html" {
+	if rs2.GotoLocation != "https://docs.tink.com/guides/user.html" {
 		t.Fatal("failed to help link")
 	}
 }

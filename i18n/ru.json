@@ -93,7 +93,7 @@
   },
   {
     "id": "api.admin.test_email.body",
-    "translation": "<br/><br/><br/>Кажется, ваша электронная почта Mattermost установлена верно!"
+    "translation": "<br/><br/><br/>Кажется, ваша электронная почта Tink установлена верно!"
   },
   {
     "id": "api.admin.test_email.missing_server",
@@ -105,7 +105,7 @@
   },
   {
     "id": "api.admin.test_email.subject",
-    "translation": "Mattermost - Тестирование настроек электронной почты"
+    "translation": "Tink - Тестирование настроек электронной почты"
   },
   {
     "id": "api.admin.test_s3.missing_s3_bucket",
@@ -473,7 +473,7 @@
   },
   {
     "id": "api.command.invite_people.desc",
-    "translation": "Отправить письмо с приглашением вашей команде в Mattermost"
+    "translation": "Отправить письмо с приглашением вашей команде в Tink"
   },
   {
     "id": "api.command.invite_people.email_off",
@@ -780,7 +780,7 @@
   },
   {
     "id": "api.command_help.desc",
-    "translation": "Открыть страницу помощи Mattermost"
+    "translation": "Открыть страницу помощи Tink"
   },
   {
     "id": "api.command_help.name",
@@ -844,7 +844,7 @@
   },
   {
     "id": "api.command_logout.desc",
-    "translation": "Выход из Mattermost"
+    "translation": "Выход из Tink"
   },
   {
     "id": "api.command_logout.fail_message",
@@ -904,7 +904,7 @@
   },
   {
     "id": "api.command_mute.error",
-    "translation": "Could not find the channel {{.Channel}}. Please use the [channel handle](https://about.mattermost.com/default-channel-handle-documentation) to identify channels."
+    "translation": "Could not find the channel {{.Channel}}. Please use the [channel handle](https://about.Tink.com/default-channel-handle-documentation) to identify channels."
   },
   {
     "id": "api.command_mute.hint",
@@ -1120,7 +1120,7 @@
   },
   {
     "id": "api.context.v3_disabled.app_error",
-    "translation": "API версии 3 отключен на этом сервере. Пожалуйста, используйте API версии 4. Посетите https://api.mattermost.com для более подробного ознакомления."
+    "translation": "API версии 3 отключен на этом сервере. Пожалуйста, используйте API версии 4. Посетите https://api.Tink.com для более подробного ознакомления."
   },
   {
     "id": "api.deprecated.init.debug",
@@ -2068,7 +2068,7 @@
   },
   {
     "id": "api.slackimport.slack_add_channels.merge",
-    "translation": "Slack канал {{.DisplayName}} уже существует в виде канала Mattermost. Произведено слияние.\r\n"
+    "translation": "Slack канал {{.DisplayName}} уже существует в виде канала Tink. Произведено слияние.\r\n"
   },
   {
     "id": "api.slackimport.slack_add_posts.attach_files.error",
@@ -2116,7 +2116,7 @@
   },
   {
     "id": "api.slackimport.slack_add_posts.user_no_exists.debug",
-    "translation": "Импорт Slack: Невозможно добавить сообщение, так как Slack пользователь %v не существует в Mattermost."
+    "translation": "Импорт Slack: Невозможно добавить сообщение, так как Slack пользователь %v не существует в Tink."
   },
   {
     "id": "api.slackimport.slack_add_posts.without_user.debug",
@@ -2132,11 +2132,11 @@
   },
   {
     "id": "api.slackimport.slack_add_users.merge_existing",
-    "translation": "Slack user merged with an existing Mattermost user with matching email {{.Email}} and username {{.Username}}.\r\n"
+    "translation": "Slack user merged with an existing Tink user with matching email {{.Email}} and username {{.Username}}.\r\n"
   },
   {
     "id": "api.slackimport.slack_add_users.merge_existing_failed",
-    "translation": "Slack user merged with an existing Mattermost user with matching email {{.Email}} and username {{.Username}}, but was unable to add the user to their team.\r\n"
+    "translation": "Slack user merged with an existing Tink user with matching email {{.Email}} and username {{.Username}}, but was unable to add the user to their team.\r\n"
   },
   {
     "id": "api.slackimport.slack_add_users.missing_email_address",
@@ -2168,7 +2168,7 @@
   },
   {
     "id": "api.slackimport.slack_import.log",
-    "translation": "Лог импорта Mattermost Slack\r\n"
+    "translation": "Лог импорта Tink Slack\r\n"
   },
   {
     "id": "api.slackimport.slack_import.note1",
@@ -2512,7 +2512,7 @@
   },
   {
     "id": "api.templates.invite_body.extra_info",
-    "translation": "Mattermost позволяет обмениваться сообщениями и файлами с компьютера или телефона с возможностью моментального поиска и архивирования. После того, как Вы присоединитесь к команде <strong>{{.TeamDisplayName}}</strong>, Вы сможете получить доступ к этим функциям в любое время через Веб-сайт:<br/><br/><a href='{{.TeamURL}}'>{{.TeamURL}}</a>"
+    "translation": "Tink позволяет обмениваться сообщениями и файлами с компьютера или телефона с возможностью моментального поиска и архивирования. После того, как Вы присоединитесь к команде <strong>{{.TeamDisplayName}}</strong>, Вы сможете получить доступ к этим функциям в любое время через Веб-сайт:<br/><br/><a href='{{.TeamURL}}'>{{.TeamURL}}</a>"
   },
   {
     "id": "api.templates.invite_body.info",
@@ -2612,11 +2612,11 @@
   },
   {
     "id": "api.templates.upgrade_30_body.info",
-    "translation": "<h3 style='font-weight: normal; margin-top: 10px;'>ВАШИ ДУБЛИРУЮЩИЕ АККАУНТЫ БЫЛИ ОБНОВЛЕНЫ</h3>Ваш сервер Mattermost обновлен до версии 3.0, она позволяет использовать одну учетную запись на несколько команд.<br/><br/>Вы получили это письмо, так как в процессе обновления было найдено, что Ваш аккаунт был привязан к адресу электронной почты или пользователю для другой учетной записи на сервере.<br/><br/>Были выполнены следующие обновления:<br/><br/>{{if .EmailChanged }}-Дубликат адреса электронной почты для команды `/{{.TeamName}}` изменен на `{{.Email}}`. Вам нужно будет использовать этот адрес электронной почты и пароль для входа в систему.<br/><br/>{{end}}{{if .UsernameChanged }}-Дубликат логина для команды `/{{.TeamName}}` изменен на `{{.Username}}`, чтобы избежать путаницы с другими аккаунтами.<br/><br/>{{end}} РЕКОМЕНДОВАННОЕ ДЕЙСТВИЕ: <br/><br/>Мы рекомендуем, чтобы Вы вошли в Ваши команды, используя Ваши дублирующиеся аккаунты и добавили Ваш основной аккаунт в команду, а так же публичные каналы и приватные группы, которые Вы хотите продолжать использовать далее. <br/><br/>Это даст Вашему основному аккаунту доступ ко всем публичным каналам и истории приватных групп. Если Вы хотите получить доступ к истории личных сообщений Ваших дублирующих аккаунтов, Вам нужно войти в систему со своими полномочиями. <br/><br/>ЧТОБЫ ПОЛУЧИТЬ БОЛЬШЕ ИНФОРМАЦИИ: <br/><br/>Для получения дополнительной информации об обновлении до Mattermost 3.0 перейдите по ссылке: <a href='http://www.mattermost.org/upgrading-to-mattermost-3-0/'>http://www.mattermost.org/upgrading-to-mattermost-3-0/</a><br/><br/>"
+    "translation": "<h3 style='font-weight: normal; margin-top: 10px;'>ВАШИ ДУБЛИРУЮЩИЕ АККАУНТЫ БЫЛИ ОБНОВЛЕНЫ</h3>Ваш сервер Tink обновлен до версии 3.0, она позволяет использовать одну учетную запись на несколько команд.<br/><br/>Вы получили это письмо, так как в процессе обновления было найдено, что Ваш аккаунт был привязан к адресу электронной почты или пользователю для другой учетной записи на сервере.<br/><br/>Были выполнены следующие обновления:<br/><br/>{{if .EmailChanged }}-Дубликат адреса электронной почты для команды `/{{.TeamName}}` изменен на `{{.Email}}`. Вам нужно будет использовать этот адрес электронной почты и пароль для входа в систему.<br/><br/>{{end}}{{if .UsernameChanged }}-Дубликат логина для команды `/{{.TeamName}}` изменен на `{{.Username}}`, чтобы избежать путаницы с другими аккаунтами.<br/><br/>{{end}} РЕКОМЕНДОВАННОЕ ДЕЙСТВИЕ: <br/><br/>Мы рекомендуем, чтобы Вы вошли в Ваши команды, используя Ваши дублирующиеся аккаунты и добавили Ваш основной аккаунт в команду, а так же публичные каналы и приватные группы, которые Вы хотите продолжать использовать далее. <br/><br/>Это даст Вашему основному аккаунту доступ ко всем публичным каналам и истории приватных групп. Если Вы хотите получить доступ к истории личных сообщений Ваших дублирующих аккаунтов, Вам нужно войти в систему со своими полномочиями. <br/><br/>ЧТОБЫ ПОЛУЧИТЬ БОЛЬШЕ ИНФОРМАЦИИ: <br/><br/>Для получения дополнительной информации об обновлении до Tink 3.0 перейдите по ссылке: <a href='http://www.Tink.org/upgrading-to-Tink-3-0/'>http://www.Tink.org/upgrading-to-Tink-3-0/</a><br/><br/>"
   },
   {
     "id": "api.templates.upgrade_30_subject.info",
-    "translation": "[MATTERMOST] Произошли изменения в Вашей учетной записи для обновления до Mattermost 3.0"
+    "translation": "[Tink] Произошли изменения в Вашей учетной записи для обновления до Tink 3.0"
   },
   {
     "id": "api.templates.user_access_token_body.info",
@@ -2676,7 +2676,7 @@
   },
   {
     "id": "api.templates.welcome_body.info3",
-    "translation": "Mattermost позволяет обмениваться сообщениями и файлами с компьютера или телефона, с возможностью моментального поиска."
+    "translation": "Tink позволяет обмениваться сообщениями и файлами с компьютера или телефона, с возможностью моментального поиска."
   },
   {
     "id": "api.templates.welcome_body.title",
@@ -4224,15 +4224,15 @@
   },
   {
     "id": "ent.ldap.do_login.user_filtered.app_error",
-    "translation": "Ваша учетная запись AD/LDAP не имеет разрешения на использование этого сервера Mattermost. Пожалуйста, обратитесь к системному администратору, чтобы проверить фильтр пользователей AD/LDAP."
+    "translation": "Ваша учетная запись AD/LDAP не имеет разрешения на использование этого сервера Tink. Пожалуйста, обратитесь к системному администратору, чтобы проверить фильтр пользователей AD/LDAP."
   },
   {
     "id": "ent.ldap.do_login.user_not_registered.app_error",
     "translation": "Пользователь не зарегистрирован на сервере AD/LDAP"
   },
   {
-    "id": "ent.ldap.mattermost_user_update",
-    "translation": "Пользователь Mattermost был обновлен сервером AD/LDAP."
+    "id": "ent.ldap.Tink_user_update",
+    "translation": "Пользователь Tink был обновлен сервером AD/LDAP."
   },
   {
     "id": "ent.ldap.sync.index_job_failed.error",
@@ -4320,7 +4320,7 @@
   },
   {
     "id": "ent.migration.migratetosaml.username_already_used_by_other_user",
-    "translation": "Username already used by another Mattermost user."
+    "translation": "Username already used by another Tink user."
   },
   {
     "id": "ent.saml.attribute.app_error",
@@ -4435,51 +4435,51 @@
     "translation": "Невозможно получить каналы"
   },
   {
-    "id": "mattermost.bulletin.subject",
-    "translation": "Бюллетень безопасности Mattermost"
+    "id": "Tink.bulletin.subject",
+    "translation": "Бюллетень безопасности Tink"
   },
   {
-    "id": "mattermost.config_file",
+    "id": "Tink.config_file",
     "translation": "Загружен файл конфигурации %v"
   },
   {
-    "id": "mattermost.current_version",
+    "id": "Tink.current_version",
     "translation": "Текущая версия %v (%v/%v/%v/%v)"
   },
   {
-    "id": "mattermost.entreprise_enabled",
+    "id": "Tink.entreprise_enabled",
     "translation": "Enterprise лицензия: %v"
   },
   {
-    "id": "mattermost.load_license.find.warn",
-    "translation": "Требуется лицензионный ключ от https://mattermost.com для доступа к возможностям корпоративной редакции."
+    "id": "Tink.load_license.find.warn",
+    "translation": "Требуется лицензионный ключ от https://Tink.com для доступа к возможностям корпоративной редакции."
   },
   {
-    "id": "mattermost.security_bulletin.error",
+    "id": "Tink.security_bulletin.error",
     "translation": "Не удалось получить сведения о бюллетенях безопасности"
   },
   {
-    "id": "mattermost.security_bulletin_read.error",
+    "id": "Tink.security_bulletin_read.error",
     "translation": "Не удалось прочитать подробности о бюллетенях безопасности"
   },
   {
-    "id": "mattermost.security_checks.debug",
-    "translation": "Проверка наличия обновлений безопасности от Mattermost"
+    "id": "Tink.security_checks.debug",
+    "translation": "Проверка наличия обновлений безопасности от Tink"
   },
   {
-    "id": "mattermost.security_info.error",
-    "translation": "Не удалось получить информацию об обновлениях безопасности от Mattermost."
+    "id": "Tink.security_info.error",
+    "translation": "Не удалось получить информацию об обновлениях безопасности от Tink."
   },
   {
-    "id": "mattermost.send_bulletin.info",
+    "id": "Tink.send_bulletin.info",
     "translation": "Отправка сводки безопасности для %v к %v"
   },
   {
-    "id": "mattermost.system_admins.error",
-    "translation": "Не удалось установить системных администраторов для информации об обновлениях безопасности от Mattermost."
+    "id": "Tink.system_admins.error",
+    "translation": "Не удалось установить системных администраторов для информации об обновлениях безопасности от Tink."
   },
   {
-    "id": "mattermost.working_dir",
+    "id": "Tink.working_dir",
     "translation": "Текущий рабочий каталог %v"
   },
   {
@@ -5804,7 +5804,7 @@
   },
   {
     "id": "store.sql.schema_version.critical",
-    "translation": "Database schema version %v is no longer supported. This Mattermost server supports automatic upgrades from schema version %v through schema version %v. Downgrades are not supported. Please manually upgrade to at least version %v before continuing"
+    "translation": "Database schema version %v is no longer supported. This Tink server supports automatic upgrades from schema version %v through schema version %v. Downgrades are not supported. Please manually upgrade to at least version %v before continuing"
   },
   {
     "id": "store.sql.short_ciphertext",
@@ -7184,7 +7184,7 @@
   },
   {
     "id": "utils.config.add_client_locale.app_error",
-    "translation": "Unable to load mattermost configuration file:  Adding DefaultClientLocale to AvailableLocales."
+    "translation": "Unable to load Tink configuration file:  Adding DefaultClientLocale to AvailableLocales."
   },
   {
     "id": "utils.config.load_config.decoding.panic",
@@ -7208,19 +7208,19 @@
   },
   {
     "id": "utils.config.supported_available_locales.app_error",
-    "translation": "Unable to load mattermost configuration file:  AvailableLocales must include DefaultClientLocale. Setting AvailableLocales to all locales as default value."
+    "translation": "Unable to load Tink configuration file:  AvailableLocales must include DefaultClientLocale. Setting AvailableLocales to all locales as default value."
   },
   {
     "id": "utils.config.supported_client_locale.app_error",
-    "translation": "Unable to load mattermost configuration file:  DefaultClientLocale must be one of the supported locales. Setting DefaultClientLocale to en as default value."
+    "translation": "Unable to load Tink configuration file:  DefaultClientLocale must be one of the supported locales. Setting DefaultClientLocale to en as default value."
   },
   {
     "id": "utils.config.supported_server_locale.app_error",
-    "translation": "Unable to load mattermost configuration file:  DefaultServerLocale must be one of the supported locales. Setting DefaultServerLocale to en as default value."
+    "translation": "Unable to load Tink configuration file:  DefaultServerLocale must be one of the supported locales. Setting DefaultServerLocale to en as default value."
   },
   {
     "id": "utils.config.validate_locale.app_error",
-    "translation": "Unable to load mattermost configuration file:  AvailableLocales must include DefaultClientLocale"
+    "translation": "Unable to load Tink configuration file:  AvailableLocales must include DefaultClientLocale"
   },
   {
     "id": "utils.diagnostic.analytics_not_found.app_error",

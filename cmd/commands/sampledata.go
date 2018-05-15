@@ -100,7 +100,7 @@ func randomMessage(users []string) string {
 			message = "https://www.youtube.com/watch?v=" + mattermostVideos[rand.Intn(len(mattermostVideos))]
 		case 1:
 			mattermostTweets := []string{"943119062334353408", "949370809528832005", "948539688171819009", "939122439115681792", "938061722027425797"}
-			message = "https://twitter.com/mattermosthq/status/" + mattermostTweets[rand.Intn(len(mattermostTweets))]
+			message = "https://twitter.com/tink/status/" + mattermostTweets[rand.Intn(len(mattermostTweets))]
 		}
 	case 2:
 		message = ""

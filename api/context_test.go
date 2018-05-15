@@ -14,8 +14,8 @@ func TestSiteURLHeader(t *testing.T) {
 		url  string
 		want string
 	}{
-		{"http://mattermost.com/", "http://mattermost.com"},
-		{"http://mattermost.com", "http://mattermost.com"},
+		{"http://tink.com/", "http://tink.com"},
+		{"http://tink.com", "http://tink.com"},
 	}
 
 	for _, tc := range testCases {

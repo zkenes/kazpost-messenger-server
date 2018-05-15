@@ -27,7 +27,7 @@ import (
 
 const (
 	LOG_ROTATE_SIZE = 10000
-	LOG_FILENAME    = "mattermost.log"
+	LOG_FILENAME    = "tink.log"
 )
 
 var originalDisableDebugLvl l4g.Level = l4g.DEBUG

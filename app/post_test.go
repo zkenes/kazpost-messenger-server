@@ -233,7 +233,7 @@ func TestImageProxy(t *testing.T) {
 	defer th.TearDown()
 
 	th.App.UpdateConfig(func(cfg *model.Config) {
-		*cfg.ServiceSettings.SiteURL = "http://mymattermost.com"
+		*cfg.ServiceSettings.SiteURL = "http://tink.com"
 	})
 
 	for name, tc := range map[string]struct {
@@ -254,8 +254,8 @@ func TestImageProxy(t *testing.T) {
 			ProxyType:       "atmos/camo",
 			ProxyURL:        "https://127.0.0.1",
 			ProxyOptions:    "foo",
-			ImageURL:        "http://mymattermost.com/myimage",
-			ProxiedImageURL: "http://mymattermost.com/myimage",
+			ImageURL:        "http://tink.com/myimage",
+			ProxiedImageURL: "http://tink.com/myimage",
 		},
 		"atmos/camo_PathOnly": {
 			ProxyType:       "atmos/camo",

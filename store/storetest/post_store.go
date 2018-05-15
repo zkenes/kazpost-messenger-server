@@ -892,13 +892,13 @@ func testPostStoreSearch(t *testing.T, ss store.Store) {
 	o1 := &model.Post{}
 	o1.ChannelId = c1.Id
 	o1.UserId = model.NewId()
-	o1.Message = "corey mattermost new york"
+	o1.Message = "corey tink new york"
 	o1 = (<-ss.Post().Save(o1)).Data.(*model.Post)
 
 	o1a := &model.Post{}
 	o1a.ChannelId = c1.Id
 	o1a.UserId = model.NewId()
-	o1a.Message = "corey mattermost new york"
+	o1a.Message = "corey tink new york"
 	o1a.Type = model.POST_JOIN_CHANNEL
 	o1a = (<-ss.Post().Save(o1a)).Data.(*model.Post)
 
